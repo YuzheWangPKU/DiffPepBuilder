@@ -1,0 +1,69 @@
+# Configuration for de novo peptide generation.
+
+defaults:
+  - eval_gen
+
+data:
+  train_csv_path: null
+  # CSV for path and metadata to receptors.
+  val_csv_path: DiffPepBuilder/data/receptor_data/metadata_test.csv
+  mask_lig_seq: True
+  num_eval_samples: null
+
+  # Add Gaussian noise to center position.
+  center_pos_noise: True
+  center_pos_noise_std: 5.0
+
+experiment:
+  # Experiment metadata
+  name: inference
+
+  # Training mode
+  use_ddp : True
+
+  # Training arguments
+  eval_batch_size: ${inference.sampling.samples_per_length}
+  num_loader_workers: 4
+  use_gpu: True
+  num_gpus: 8
+  sample_mode: time_batch
+
+  # Evaluation.
+  eval_ckpt_path: DiffPepBuilder/tests/diffpepbuilder_v1.pth
+  eval_dir: DiffPepBuilder/tests/${now:%b%d}/inference_outputs
+
+inference:
+  seed: 42
+
+  # Save the denoising trajectory.
+  save_traj: False
+
+  denoising:
+    # Number of steps.
+    num_t: 500
+    # Analogous to sampling temperature.
+    noise_scale: 1.0
+    # Final t.
+    min_t: 0.01
+
+  sampling:
+    # Number of peptide backbone samples per sequence length.
+    samples_per_length: 128
+    # Minimum sequence length to sample.
+    min_length: 8
+    # Maximum sequence length to sample.
+    max_length: 30
+    # Sampling temperature.
+    seq_temperature: 0.1
+
+  ss_bond:
+    # Calculate and save the entropy of each residue as B factors
+    save_entropy: True
+    # Build disulfide bonds
+    build_ss_bond: True
+    # Maximum number of SS bonds
+    max_ss_bond: 2
+    # Disulfide bond fragment library path
+    frag_lib_path: DiffPepBuilder/SSbuilder/SSBLIB
+    # b-factor threshold
+    entropy_threshold: 0.01

@@ -1,0 +1,41 @@
+# Configuration for evaluation.
+
+defaults:
+  - base
+
+data:
+  train_csv_path: null
+  val_csv_path: DiffPepBuilder/data/finetune_dataset/metadata_val.csv
+  min_t: 0.01
+  num_t: 500
+  num_eval_samples: null
+  num_repeat_per_eval_sample: 128
+
+  # Add Gaussian noise to center position.
+  center_pos_noise: True
+  center_pos_noise_std: 2.0
+
+experiment:
+  # Experiment metadata
+  name: eval_gen
+
+  # Training arguments
+  eval_batch_size: ${data.num_repeat_per_eval_sample}
+  num_loader_workers: 4
+  use_gpu: True
+  num_gpus: 8
+  sample_mode: time_batch
+
+  # Checkpoint directory to warm start from.
+  warm_start: ${experiment.eval_only}
+  warm_start_ckpt_path: ${experiment.eval_ckpt_path}
+  reset_training: False
+  use_warm_start_conf: False
+
+  # Evaluation. Set eval_only True to skip training.
+  eval_only: True
+  eval_ckpt_path: DiffPepBuilder/experiments/checkpoints/diffpepbuilder_v1.pth
+  eval_dir: DiffPepBuilder/tests/${now:%b%d}/eval_outputs
+  noise_scale: 1.0
+  seq_temperature: 0.1
+

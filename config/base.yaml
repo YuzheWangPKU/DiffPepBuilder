@@ -1,0 +1,159 @@
+# Base configuration for training and evaluation.
+
+defaults:
+  - _self_
+
+data:
+  # CSV for path and metadata to training examples.
+  train_csv_path: DiffPepBuilder/data/complex_dataset/metadata_train.csv
+  val_csv_path: DiffPepBuilder/data/complex_dataset/metadata_val.csv
+  cluster_path: null
+  filtering:
+    max_len: 512
+    min_len: 8
+    subset: null
+    allowed_oligomer: null
+    max_helix_percent: null
+    max_loop_percent: null
+    min_beta_percent: null
+    rog_quantile: null
+  min_t: 0.01
+  num_t: 100
+  # Number of validation examples. Set to null to use the complete validation set.
+  num_eval_samples: 200
+  num_repeat_per_eval_sample: 8
+
+  # Add Gaussian noise to center position.
+  center_pos_noise: True
+  center_pos_noise_std: 2.0
+
+diffuser:
+  diffuse_trans: True
+  diffuse_rot: True
+
+  # R(3) diffuser arguments
+  r3:
+    min_b: 0.1
+    max_b: 20.0
+    coordinate_scaling: 0.1
+
+  # SO(3) diffuser arguments
+  so3:
+    num_omega: 1000
+    num_sigma: 1000
+    min_sigma: 0.1
+    max_sigma: 1.5
+    schedule: logarithmic
+    cache_dir: DiffPepBuilder/tests/cache/
+    use_cached_score: False
+
+model:
+  node_embed_size: 512
+  edge_embed_size: 256
+  embed:
+    index_embed_size: 64
+    aatype_embed_size: 128
+    use_esm_embed: True
+    raw_esm_size: 1280
+    esm_embed_size: 512
+    embed_self_conditioning: True
+    num_bins: 22
+    min_bin: 1e-5
+    max_bin: 20.0
+    num_aatypes: 20
+  ipa:
+    c_s: ${model.node_embed_size}
+    c_z: ${model.edge_embed_size}
+    c_hidden: 512
+    c_skip: 128
+    no_heads: 8
+    no_qk_points: 8
+    no_v_points: 12
+    seq_tfmr_num_heads: 4
+    seq_tfmr_num_layers: 2
+    num_blocks: 6
+    coordinate_scaling: ${diffuser.r3.coordinate_scaling}
+  mdn:
+    n_gaussians: 10
+    dropout: 0.15
+    max_ca_dist: 10.0
+  decode:
+    res_dist_threshold: 12.0
+
+experiment:
+  # Experiment metadata
+  name: base
+  run_id: null
+
+  # Training mode
+  use_ddp : True
+
+  # Training arguments
+  log_freq: 2500
+  batch_size: 256
+  eval_batch_size: ${data.num_repeat_per_eval_sample}
+  num_loader_workers: 4
+  num_epoch: 5000
+  learning_rate: 0.00001
+  max_squared_res: 500000
+  prefetch_factor: 100
+  use_gpu: True
+  num_gpus: 8
+  sample_mode: time_batch
+
+  # Wandb logging
+  wandb_dir: ./
+  use_wandb: False
+
+  # How many steps to checkpoint between.
+  ckpt_freq: 10000
+  # Take early checkpoint at step 100. Helpful for catching eval bugs early.
+  early_ckpt: True
+
+  # Checkpoint directory to warm start from.
+  warm_start: False
+  warm_start_ckpt_path: null
+  reset_training: True
+  use_warm_start_conf: False
+  freeze_backbone: False
+
+  ckpt_dir: DiffPepBuilder/tests/${now:%b%d}/ckpt
+
+  # Loss weights.
+  aa_type_loss_weight: 2.0
+  aa_type_loss_t_filter: 0.25
+
+  trans_loss_weight: 1.0
+  rot_loss_weight: 0.5
+  rot_loss_t_threshold: 0.2
+  separate_rot_loss: True
+  trans_x0_threshold: 1.0
+  coordinate_scaling: ${diffuser.r3.coordinate_scaling}
+  
+  bb_atom_loss_weight: 0.25
+  bb_atom_loss_t_filter: 0.25
+  dist_mat_loss_weight: 0.25
+  dist_mat_loss_t_filter: 0.25
+  dist_threshold: 6.0
+  ca_clash_loss_weight: 0.25
+  ca_clash_loss_t_filter: 0.5
+  ca_clash_dist_threshold: 4.0
+
+  chi_loss_weight: 0.25
+  anglenorm_weight: 0.02
+  chi_loss_t_filter: 0.25
+
+  # Evaluation. Set eval_only True to skip training.
+  eval_only: False
+  eval_ckpt_path: null
+  eval_dir: DiffPepBuilder/tests/${now:%b%d}/eval_outputs
+  noise_scale: 1.0
+  seq_temperature: 0.0
+  flip_align: True
+
+hydra:
+  run:
+    dir: DiffPepBuilder/tests/${now:%b%d}/hydra_run_${now:%H:%M}
+  sweep:
+    dir: DiffPepBuilder/tests/${now:%b%d}/hydra_sweep_${now:%H:%M}
+    subdir: ${hydra.job.override_dirname}

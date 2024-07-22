@@ -1,0 +1,256 @@
+<!--CYC_BUILDER post processes design protocol-->
+<ROSETTASCRIPTS>
+
+    <SCOREFXNS>
+
+        <!--Default score function-->
+        <ScoreFunction name="score" weights="ref2015"/>
+    
+        <!--Cartesian score function-->
+        <ScoreFunction name="score_cart" weights="ref2015_cart"/>
+    
+        <!--Score function with constraints required for N-C bond-->
+        <ScoreFunction name="score_cst" weights="ref2015">
+            <Reweight scoretype="coordinate_constraint" weight="1"/>
+            <Reweight scoretype="atom_pair_constraint" weight="1"/>
+            <Reweight scoretype="dihedral_constraint" weight="1"/>
+            <Reweight scoretype="angle_constraint" weight="1"/>
+        </ScoreFunction>
+    
+        <!--Score function with elevated focus of hydrogen bonds-->
+        <ScoreFunction name="high_hbond" weights="ref2015">
+            <Reweight scoretype="coordinate_constraint" weight="1"/>
+            <Reweight scoretype="atom_pair_constraint" weight="1"/>
+            <Reweight scoretype="dihedral_constraint" weight="1"/>
+            <Reweight scoretype="angle_constraint" weight="1"/>
+            <Reweight scoretype="hbond_lr_bb" weight="11.7"/>
+            <Reweight scoretype="hbond_sr_bb" weight="11.7"/>
+        </ScoreFunction>
+    
+        <!--Score function with constraints, higher hydrogen bond term, and aa composition for design-->
+        <ScoreFunction name="score_cst_comp" weights="ref2015.wts">
+            <Reweight scoretype="atom_pair_constraint" weight="1.0"/>
+            <Reweight scoretype="angle_constraint" weight="1.0"/>
+            <Reweight scoretype="dihedral_constraint" weight="1.0"/>
+            <Reweight scoretype="aa_composition" weight="2.0" />
+            <Reweight scoretype="hbond_lr_bb" weight="11.7"/>
+            <Reweight scoretype="hbond_sr_bb" weight="11.7"/>
+        </ScoreFunction>
+
+        <!--Score with constraint and composition turned on-->
+        <ScoreFunction name="beta_cst_comp_hbond" weights="ref2015.wts">
+            <Reweight scoretype="atom_pair_constraint" weight="1.0"/>
+            <Reweight scoretype="angle_constraint" weight="1.0"/>
+            <Reweight scoretype="dihedral_constraint" weight="1.0"/>
+            <Reweight scoretype="aa_composition" weight="1.0" />
+            <Reweight scoretype="hbnet" weight="1.0"/>
+        </ScoreFunction>
+
+    </SCOREFXNS>
+
+    <RESIDUE_SELECTORS>
+        
+        <!--Degining peptide and protein chain-->
+        <Chain name="CYC" chains="2"/>
+        <Chain name="rec_3CL" chains="1"/>
+
+
+        <!--Selecting interfaces-->
+        <Neighborhood name="interface_rec_3CL" selector="CYC" distance="10.0" include_focus_in_subset="false"/>
+        <Neighborhood name="interface_CYC" selector="rec_3CL" distance="10.0" include_focus_in_subset="false"/>
+        <And name="LP_interface" selectors="interface_rec_3CL,interface_CYC"/>
+
+        <!--Selecting cyc and protein interafces-->
+        <And name="Fst_relax_motif" selectors="CYC,interface_rec_3CL"/>
+        
+        
+        <!--making sure that D and L residue are designed properly-->
+        <Phi name="posPhi" select_positive_phi="true" />
+        <And name="posPhi_pep" selectors="CYC,posPhi"/>
+        <Phi name="negPhi" select_positive_phi="false" />
+        <And name="negPhi_pep" selectors="CYC,negPhi"/>
+        
+        <!--getting the tags-->
+        <ResiduePDBInfoHasLabel name="pols" property="POLAR" />
+        <ResiduePDBInfoHasLabel name="hyds" property="HYDROPH" />
+        
+        <!--choosing what we do not want to design tag-wise-->
+        <Not name="not_pols" selector="pols"/>
+        <Not name="not_hyds" selector="hyds"/>
+        
+        
+    </RESIDUE_SELECTORS>
+
+    <TASKOPERATIONS>
+
+        <!--Defining what to pack and what to keep as is-->
+        <OperateOnResidueSubset name="justrepack" selector="CYC">
+            <RestrictToRepackingRLT/>
+        </OperateOnResidueSubset>
+        <OperateOnResidueSubset name="norepack" selector="rec_3CL">
+            <PreventRepackingRLT/>
+        </OperateOnResidueSubset>
+        
+        <!--setting up the designable and repackable regions so that HDAC does not get designed and only parts around binder repack-->
+        <RestrictChainToRepacking name="only_repack_chain" chain="1"/>
+        <OperateOnResidueSubset name="to_pols" selector="not_pols">
+            <RestrictToRepackingRLT/>
+        </OperateOnResidueSubset>
+        <OperateOnResidueSubset name="to_hyds" selector="not_hyds">
+            <RestrictToRepackingRLT/>
+        </OperateOnResidueSubset>
+        <DisallowIfNonnative name="no_cys" disallow_aas="C"/>
+        <OperateOnResidueSubset name="no_repack_except_interface">
+            <And>
+                <Chain chains="2"/>
+                   <Not>
+                      <Neighborhood distance="10.0">
+                          <Chain chains="1"/>
+                      </Neighborhood>
+                   </Not>
+            </And>
+            <PreventRepackingRLT />
+        </OperateOnResidueSubset>
+        
+        <!--design related task operations-->
+        <LimitAromaChi2 name="limchi2"/>
+        <IncludeCurrent name="current"/>
+
+        <!--design hdr_pol restricts-->
+        <OperateOnResidueSubset name="just_pols" selector="not_pols">
+            <RestrictToRepackingRLT/>
+        </OperateOnResidueSubset>
+
+        <OperateOnResidueSubset name="just_hyds" selector="not_hyds">
+            <RestrictToRepackingRLT/>
+        </OperateOnResidueSubset>
+
+        <!--design single point-->
+        <OperateOnResidueSubset name="just_one_point" selector="not_index_and_cyc">
+            <RestrictToRepackingRLT/>
+        </OperateOnResidueSubset>
+
+    </TASKOPERATIONS>
+    
+    <SIMPLE_METRICS>
+    
+        <!--Counting residues around the protein pocket-->
+        <SelectedResidueCountMetric name="count_close" residue_selector="LP_interface" />
+        <!--TotalEnergy filter of CYC-->
+        <!--Total energy metric-->
+        <TotalEnergyMetric name="ttEcyc" residue_selector="CYC"/>
+
+    </SIMPLE_METRICS>
+
+    <FILTERS>
+    
+        <!--Score filter-->
+        <ScoreType name="score_all" scorefxn="score" score_type="total_score" threshold="-500"/>
+        <ScoreType name="score_low" scorefxn="score" score_type="total_score" threshold="-200"/>
+        
+        <!--calculates number of burried unsatisfied hydrogen bond donors/aceptors-->
+        <BuriedUnsatHbonds use_legacy_options="false" name="BUH" scorefxn="score" jump_number="1" use_ddG_style="false" cutoff="2" residue_selector="LP_interface" confidence="0"/>
+    
+        <!--filtering Rosetta hydrogen bond pathology-->
+        <OversaturatedHbondAcceptorFilter name="oversat" scorefxn="score" donor_selector="CYC" acceptor_selector="CYC" confidence="0"/>
+        
+        <!--interface shape complementarity-->
+        <ShapeComplementarity name="sc_filter" verbose="0" min_sc="0.5" write_int_area="1" jump="1" confidence="0"/>
+        
+        <!--ddG w/ and w/o repack/min score score function-->
+        <Ddg name="ddg"  threshold="-25" jump="1" repeats="5" repack="1" confidence="0" scorefxn="score"/>
+        <Ddg name="ddg_norepack"  threshold="-25" jump="1" repeats="1" repack="0" confidence="0" scorefxn="score"/>
+        
+        <!--Computes the sasa specifically in the interface: total, hydrophobic, and polar-->
+        <Sasa name="interface_buried_sasa" confidence="0"/>
+        <Sasa name="interface_hydrophobic_sasa" confidence="0" hydrophobic="True"/>
+        <Sasa name="interface_polar_sasa" confidence="0" polar="True"/>
+        
+        <!--Unsatisfide hydrogen bonds-->
+        <BuriedUnsatHbonds name="new_buns_bb_heavy" use_reporter_behavior="true" report_bb_heavy_atom_unsats="true" scorefxn="score" residue_surface_cutoff="15.0" ignore_surface_res="false" print_out_info_to_pdb="true" confidence="0" residue_selector="CYC" use_vsasa="false" use_hbnet_behavior="true"/>
+        
+        <!--Counting contacts between peptide and protein pocket-->
+        <SimpleMetricFilter name="contact_filter" metric="count_close" cutoff="1" comparison_type="gt_or_eq" confidence="0"/>
+        <SimpleMetricFilter name="CYCttE" metric="ttEcyc" cutoff="50.0" comparison_type="lt_or_eq" confidence="0"/>
+    
+    </FILTERS>
+    
+    <JUMP_SELECTORS>
+    
+        <!--Defining Jumps to move-->
+        <JumpIndex name="jump1" jump="1" />
+        <!--JumpIndex name="jump2" jump="2" /-->
+        <!--And name="fixed_jumps" selectors="jump1,jump2" /-->
+        <!--Not name="movable_jumps" selector="fixed_jumps" /-->
+    
+    </JUMP_SELECTORS>
+    
+    <MOVE_MAP_FACTORIES>
+    
+        <!--Defining protein and peptide parts to minimize-->
+        <MoveMapFactory name="frlx_mm" bb="false" chi="false" jumps="false">
+            <Backbone residue_selector="Fst_relax_motif" />
+            <Chi residue_selector="CYC" />
+            <Jumps jump_selector="jump1" />
+        </MoveMapFactory>
+    
+        <MoveMapFactory name="min_mm" bb="false" chi="false" jumps="false">
+            <Backbone residue_selector="CYC" />
+            <Chi residue_selector="CYC" />
+            <Jumps jump_selector="jump1" />
+        </MoveMapFactory>
+
+        <MoveMapFactory name="design_ph" bb="false" chi="false" jumps="false">
+            <!--Backbone residue_selector="CYC" /-->
+            <Backbone residue_selector="CYC" />
+            <Chi residue_selector="CYC" />
+            <Jumps jump_selector="jump1" />
+        </MoveMapFactory>
+    
+    </MOVE_MAP_FACTORIES>
+    
+    <MOVERS>
+    
+        <!--Defining docking atom tree to keep peptide and protein close-->
+        <AtomTree name="docking_tree" docking_ft="true" />
+    
+        <!--Minimizing peptide to get peptide energy-->
+        <MinMover name="min_pep" scorefxn="score_cart" movemap_factory="min_mm" cartesian="true"/>
+    
+        <!--Moving peptide around in the protein pocket-->
+        <Shear name="shake" residue_selector="CYC" scorefxn="score"/>
+    
+
+        <!--Docking mover-->
+        <FlexPepDock name="redock" min_only="true" pep_refine="true" lowres_abinitio="false" ppk_only="false" scorefxn="ref_2015" extra_scoring="false"/>
+    
+        <!--Series of analysis on the binding metrics-->
+        <InterfaceAnalyzerMover name="interface" scorefxn="score" packstat="true" interface_sc="true" pack_input="false" pack_separated="1" ligandchain="L" />
+
+    </MOVERS>
+    <APPLY_TO_POSE>
+    </APPLY_TO_POSE>
+    <PROTOCOLS>
+        <Add mover="docking_tree"/>
+        <Add mover="min_pep" />
+        <Add mover="shake"/>
+        <Add mover="redock"/>
+        <Add mover="interface"/>
+        <Add filter="ddg_norepack"/>
+        <Add filter="interface_buried_sasa"/>
+        <Add filter="interface_hydrophobic_sasa"/>
+        <Add filter="interface_polar_sasa"/>
+        <Add filter="BUH"/>
+        <Add filter="oversat"/>
+        <Add filter="CYCttE"/>
+    </PROTOCOLS>
+    <OUTPUT />
+</ROSETTASCRIPTS>
+
+
+
+
+
+
+
+
