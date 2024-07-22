@@ -2,7 +2,7 @@
 
 This is the official repository for the paper [Target-Specific De Novo Peptide Binder Design with DiffPepBuilder](https://arxiv.org/abs/2405.00128).
 
-![plot](images/dpb_model.jpg)
+![plot](dpb_model.jpg)
 
 For any questions, please open an [issue](https://github.com/YuzheWangPKU/DiffPepBuilder/issues) or contact wangyuzhe_ccme@pku.edu.cn for more information.
 
