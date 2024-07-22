@@ -167,11 +167,9 @@ cython_debug/
 
 # datasets
 *.pkl
-*.pdb
 *.zip
 *.csv
 *.txt
-*.json
 *.sc
 
 # vscode settings
