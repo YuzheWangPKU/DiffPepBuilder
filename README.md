@@ -53,7 +53,7 @@ This script will generate the receptor data in the `data/receptor_data` director
 
 ```bash
 export BASE_PATH="your/path/to/DiffPepBuilder"
-torchrun --nproc-per-node=8 experiments/run_inference.py data.val_csv_path=$BASE_PATH/data/receptor_data/metadata_test.csv
+torchrun --nproc-per-node=8 experiments/run_inference.py data.val_csv_path=data/receptor_data/metadata_test.csv
 ```
 
 The config file `configs/inference.yaml` contains the hyperparameters for the inference process. Below is a brief explanation of the key hyperparameters:
@@ -78,7 +78,7 @@ After running the inference script, the generated peptide binders will be saved 
 
 ```bash
 export BASE_PATH="your/path/to/DiffPepBuilder"
-python $BASE_PATH/project/Peptide-Design/experiments/run_redock.py --in_path tests/inference_outputs/inference --ori_path examples/receptor_data --interface_analyzer_path your/path/to/rosetta/main/source/bin/rosetta_scripts.static.linuxgccrelease
+python experiments/run_redock.py --in_path tests/inference_outputs/inference --ori_path examples/receptor_data --interface_analyzer_path your/path/to/rosetta/main/source/bin/rosetta_scripts.static.linuxgccrelease
 ```
 
 Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final peptide binders in the `tests/inference_outputs/inference/.../pdbs_redock/` directory and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `tests/inference_outputs/inference/redock_results.csv` file.
