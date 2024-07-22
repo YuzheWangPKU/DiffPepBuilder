@@ -1,4 +1,4 @@
-name: DiffPepBuilder
+name: diffpepbuilder
 channels:
   - pytorch
   - nvidia

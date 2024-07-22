@@ -6,8 +6,7 @@ defaults:
 data:
   train_csv_path: null
   # CSV for path and metadata to receptors.
-  val_csv_path: DiffPepBuilder/data/receptor_data/metadata_test.csv
-  mask_lig_seq: True
+  val_csv_path: ${oc.env:BASE_PATH}/data/receptor_data/metadata_test.csv
   num_eval_samples: null
 
   # Add Gaussian noise to center position.
@@ -29,8 +28,8 @@ experiment:
   sample_mode: time_batch
 
   # Evaluation.
-  eval_ckpt_path: DiffPepBuilder/tests/diffpepbuilder_v1.pth
-  eval_dir: DiffPepBuilder/tests/${now:%b%d}/inference_outputs
+  eval_ckpt_path: ${oc.env:BASE_PATH}/tests/diffpepbuilder_v1.pth
+  eval_dir: ${oc.env:BASE_PATH}/tests/inference_outputs
 
 inference:
   seed: 42
@@ -40,7 +39,7 @@ inference:
 
   denoising:
     # Number of steps.
-    num_t: 500
+    num_t: 200
     # Analogous to sampling temperature.
     noise_scale: 1.0
     # Final t.
@@ -48,7 +47,7 @@ inference:
 
   sampling:
     # Number of peptide backbone samples per sequence length.
-    samples_per_length: 128
+    samples_per_length: 8
     # Minimum sequence length to sample.
     min_length: 8
     # Maximum sequence length to sample.
@@ -64,6 +63,6 @@ inference:
     # Maximum number of SS bonds
     max_ss_bond: 2
     # Disulfide bond fragment library path
-    frag_lib_path: DiffPepBuilder/SSbuilder/SSBLIB
+    frag_lib_path: ${oc.env:BASE_PATH}/SSbuilder/SSBLIB
     # b-factor threshold
     entropy_threshold: 0.01

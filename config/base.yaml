@@ -5,8 +5,8 @@ defaults:
 
 data:
   # CSV for path and metadata to training examples.
-  train_csv_path: DiffPepBuilder/data/complex_dataset/metadata_train.csv
-  val_csv_path: DiffPepBuilder/data/complex_dataset/metadata_val.csv
+  train_csv_path: ${oc.env:BASE_PATH}/data/complex_dataset/metadata_train.csv
+  val_csv_path: ${oc.env:BASE_PATH}/data/complex_dataset/metadata_val.csv
   cluster_path: null
   filtering:
     max_len: 512
@@ -44,7 +44,7 @@ diffuser:
     min_sigma: 0.1
     max_sigma: 1.5
     schedule: logarithmic
-    cache_dir: DiffPepBuilder/tests/cache/
+    cache_dir: ${oc.env:BASE_PATH}/tests/cache/
     use_cached_score: False
 
 model:
@@ -117,7 +117,7 @@ experiment:
   use_warm_start_conf: False
   freeze_backbone: False
 
-  ckpt_dir: DiffPepBuilder/tests/${now:%b%d}/ckpt
+  ckpt_dir: ${oc.env:BASE_PATH}/tests/ckpt
 
   # Loss weights.
   aa_type_loss_weight: 2.0
@@ -146,14 +146,14 @@ experiment:
   # Evaluation. Set eval_only True to skip training.
   eval_only: False
   eval_ckpt_path: null
-  eval_dir: DiffPepBuilder/tests/${now:%b%d}/eval_outputs
+  eval_dir: ${oc.env:BASE_PATH}/tests/eval_outputs
   noise_scale: 1.0
   seq_temperature: 0.0
   flip_align: True
 
 hydra:
   run:
-    dir: DiffPepBuilder/tests/${now:%b%d}/hydra_run_${now:%H:%M}
+    dir: ${oc.env:BASE_PATH}/tests/hydra_run_${now:%H:%M}
   sweep:
-    dir: DiffPepBuilder/tests/${now:%b%d}/hydra_sweep_${now:%H:%M}
+    dir: ${oc.env:BASE_PATH}/tests/hydra_sweep_${now:%H:%M}
     subdir: ${hydra.job.override_dirname}
