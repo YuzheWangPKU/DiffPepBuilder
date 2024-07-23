@@ -29,7 +29,7 @@ experiment:
 
   # Evaluation.
   eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepbuilder_v1.pth
-  eval_dir: ${oc.env:BASE_PATH}/tests/inference_outputs
+  eval_dir: ${oc.env:BASE_PATH}/tests
 
 inference:
   seed: 42

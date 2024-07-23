@@ -74,14 +74,14 @@ The config file `configs/inference.yaml` contains the hyperparameters for the in
 
 You can modify these hyperparameters to customize the inference process. For more details on the hyperparameters, please refer to our [paper](https://arxiv.org/abs/2405.00128). 
 
-After running the inference script, the generated peptide binders will be saved in the `tests/inference_outputs/inference/`. To run the side chain assembly and energy minimization using [Rosetta](https://rosettacommons.org/software/), please run the following script subsequently:
+After running the inference script, the generated peptide binders will be saved in the `tests/inference/`. To run the side chain assembly and energy minimization using [Rosetta](https://rosettacommons.org/software/), please run the following script subsequently:
 
 ```bash
 export BASE_PATH="your/path/to/DiffPepBuilder"
-python experiments/run_redock.py --in_path tests/inference_outputs/inference --ori_path examples/receptor_data --interface_analyzer_path your/path/to/rosetta/main/source/bin/rosetta_scripts.static.linuxgccrelease
+python experiments/run_redock.py --in_path tests/inference --ori_path examples/receptor_data --interface_analyzer_path your/path/to/rosetta/main/source/bin/rosetta_scripts.static.linuxgccrelease
 ```
 
-Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final peptide binders in the `tests/inference_outputs/inference/.../pdbs_redock/` directory and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `tests/inference_outputs/inference/redock_results.csv` file.
+Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final peptide binders in the `tests/inference/.../pdbs_redock/` directory and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `tests/inference/redock_results.csv` file.
 
 
 ## License
