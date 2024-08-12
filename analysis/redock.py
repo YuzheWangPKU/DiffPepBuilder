@@ -55,7 +55,8 @@ class FlexPepDock:
                  relaxed_path:str,
                  docking_path:str,
                  nproc=None,
-                 xml=None
+                 xml=None,
+                 soft_relax=True
                  ):
         self.pdb_file = pdb
         self.rec_chain = rec_chain
@@ -73,7 +74,6 @@ class FlexPepDock:
 
         ori_pdb_name = re.match(r"^(.+?)(?:_sample_\d+(?:_ss)?)?$", self.data_id).group(1)
         self.ori_file = os.path.join(self.ori_path, f'{ori_pdb_name}.pdb')
-        
         self.relaxed_file = os.path.join(self.relaxed_path, f'{self.data_id}.pdb')
         self.redock_file = os.path.join(self.docking_path, f'redock_{self.data_id}_0001.pdb')
         self.json_file_interf = os.path.join(self.docking_path, f'{self.data_id}_interf.json')
@@ -81,6 +81,7 @@ class FlexPepDock:
         self.json_file_redock_adcp = os.path.join(self.docking_path, f'{self.data_id}_redock_adcp.json')
         self.nproc = nproc
         self.xml = xml
+        self.soft_relax = soft_relax
     
     def reconstruct(self, denovo=False):
         s_pcl = P.get_structure('s_pcl', self.pdb_file)[0]
@@ -106,34 +107,51 @@ class FlexPepDock:
     
     def Rosetta_redock(self, flexppd_path):
         rosetta_script_path = os.path.join(os.path.dirname(flexppd_path), os.path.basename(flexppd_path).replace('FlexPepDocking','rosetta_scripts'))
-
+        if self.soft_relax:
+            file_to_relax = self.relaxed_file
+        else:
+            file_to_relax = self.fixed_file
+            
         os.system(f'{flexppd_path} -ex1 -ex2aro -use_input_sc -pep_refine -lowres_preoptimize -nstruct 1\
-                      -flexpep_score_only -s {self.relaxed_file} -out:path:all {self.docking_path} -out:file:scorefile_format json -out:prefix redock_\
+                      -flexpep_score_only -s {file_to_relax} -out:path:all {self.docking_path} -out:file:scorefile_format json -out:prefix redock_\
                           -overwrite -ignore_zero_occupancy false')
         
-        os.system(f'{rosetta_script_path} -s {self.redock_file} -in:file:native {self.fixed_file} -parser:protocol {self.xml} -out:path:all {self.docking_path}\
+        os.system(f'{rosetta_script_path} -s {file_to_relax} -in:file:native {self.fixed_file} -parser:protocol {self.xml} -out:path:all {self.docking_path}\
                    -out:file:scorefile_format json -out:prefix interf_ -overwrite -overwrite -ignore_zero_occupancy false')
     
     def ADCP_redock(self,):
         '''
         adcp and AutoDockTools should be pre-installed!
         '''
-        l,r = decompose(self.relaxed_file, 'A', self.docking_path)
+        if self.soft_relax:
+            file_to_relax = self.relaxed_file
+        else:
+            file_to_relax = self.fixed_file
+        l,r = decompose(file_to_relax, 'A', self.docking_path)
         adcp_protocol(l, r, self.nproc)
     
     def interface_analyze(self, rosetta_script_path):
-        os.system(f'{rosetta_script_path} -s {self.relaxed_file} -in:file:native {self.fixed_file} -parser:protocol {self.xml} -out:path:all {self.docking_path}\
+        if self.amber_relax:
+            file_to_relax = self.relaxed_file
+        else:
+            file_to_relax = self.fixed_file
+        os.system(f'{rosetta_script_path} -s {file_to_relax} -in:file:native {self.fixed_file} -parser:protocol {self.xml} -out:path:all {self.docking_path}\
                    -out:file:scorefile_format json -out:prefix interf_ -overwrite -overwrite -ignore_zero_occupancy false')
 
     def __call__(self, app=None, app_path=None, denovo=False):
         
         self.reconstruct(denovo)
-
-        self.relax()
+        
+        if self.soft_relax:
+            try:
+                self.relax()
+            except:
+                self.soft_relax = False
+            
         if app =='interface_analyzer' and app_path is not None:
             self.interface_analyze(app_path)
         
-        if app == 'flexpepdock' and app_path is not None:
+        elif app == 'flexpepdock' and app_path is not None:
             self.Rosetta_redock(app_path)
 
         elif app == 'ADCP':         
