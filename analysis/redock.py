@@ -131,7 +131,7 @@ class FlexPepDock:
         adcp_protocol(l, r, self.nproc)
     
     def interface_analyze(self, rosetta_script_path):
-        if self.amber_relax:
+        if self.soft_relax:
             file_to_relax = self.relaxed_file
         else:
             file_to_relax = self.fixed_file
