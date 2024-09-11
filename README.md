@@ -56,7 +56,7 @@ export BASE_PATH="your/path/to/DiffPepBuilder"
 torchrun --nproc-per-node=8 experiments/run_inference.py data.val_csv_path=data/receptor_data/metadata_test.csv
 ```
 
-The config file `configs/inference.yaml` contains the hyperparameters for the inference process. Below is a brief explanation of the key hyperparameters:
+The config file `config/inference.yaml` contains the hyperparameters for the inference process. Below is a brief explanation of the key hyperparameters:
 
 | Parameter            | Description                                                                         | Default Value |
 |----------------------|-------------------------------------------------------------------------------------|---------------|
@@ -111,7 +111,7 @@ export BASE_PATH="your/path/to/DiffPepBuilder"
 torchrun --nproc-per-node=8 experiments/train.py
 ```
 
-The config file `configs/base.yaml` contains the hyperparameters for the training process. You can modify these hyperparameters to customize the training process. Checkpoints will be saved every 10,000 steps after validation in the `tests/ckpt/` directory by default. Training logs will be saved every 2,500 steps.
+The config file `config/base.yaml` contains the hyperparameters for the training process. You can modify these hyperparameters to customize the training process. Checkpoints will be saved every 10,000 steps after validation in the `tests/ckpt/` directory by default. Training logs will be saved every 2,500 steps.
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
