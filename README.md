@@ -6,6 +6,12 @@ This is the official repository for the paper [Target-Specific De Novo Peptide B
 
 For any questions, please open an [issue](https://github.com/YuzheWangPKU/DiffPepBuilder/issues) or contact wangyuzhe_ccme@pku.edu.cn for more information.
 
+## News
+
+* **[2024/9/11]** We released the [PepPC-F](datasets/PepPC-F_dataset.csv) and [PepPC](datasets/PepPC_dataset.csv) datasets for DiffPepBuilder on [Zenodo](https://zenodo.org/records/13744959). The training protocol has also been released. Please refer to the [Training](#training) section for more details.
+* **[2024/7/22]** We released the initial code, [model weights](https://zenodo.org/records/12794439), and a [Colab demo](https://colab.research.google.com/github/YuzheWangPKU/DiffPepBuilder/blob/main/examples/DiffPepBuilder_demo.ipynb) for DiffPepBuilder.
+
+
 ## Quick Start
 We provide a colaboratory notebook to demonstrate the usage of DiffPepBuilder (*in progress*). Please click the following link to open the notebook in Google Colab:
 
