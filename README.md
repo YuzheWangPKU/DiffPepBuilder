@@ -83,6 +83,35 @@ python experiments/run_redock.py --in_path tests/inference --ori_path examples/r
 
 Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final peptide binders in the `tests/inference/.../pdbs_redock/` directory and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `tests/inference/redock_results.csv` file.
 
+## Training
+To train the DiffPepBuilder model from scratch, please download the training data from [Zenodo](https://zenodo.org/records/13744402) and unzip the data in the `data/` directory:
+
+```bash
+wget https://zenodo.org/records/13744402/files/PepPC-F_raw_data.tar.gz
+mkdir data/PepPC-F_raw_data
+tar -xvf PepPC-F_raw_data.tar.gz --strip-components=1 -C data/PepPC-F_raw_data
+```
+
+To preprocess the training data, run the `experiments/process_dataset.py` script:
+
+```bash
+python experiments/process_dataset.py --pdb_dir data/PepPC-F_raw_data --write_dir data/complex_dataset
+```
+
+This script will generate the training data in the `data/complex_dataset` directory. You can add `max_batch_size` flag to specify the maximum batch size for ESM embedding to avoid out-of-memory errors. Then split the data into training and validation sets:
+
+```bash
+python experiments/split_dataset.py --input_path data/complex_dataset/metadata.csv --output_path data/complex_dataset --num_val 200
+```
+
+You can modify the `num_val` flag to specify the number of validation samples. To train the DiffPepBuilder model, please specify the root directory of the DiffPepBuilder repository and then run the `experiments/train.py` script (modify the `nproc-per-node` flag accordingly based on the number of GPUs available):
+
+```bash
+export BASE_PATH="your/path/to/DiffPepBuilder"
+torchrun --nproc-per-node=8 experiments/train.py
+```
+
+The config file `configs/base.yaml` contains the hyperparameters for the training process. You can modify these hyperparameters to customize the training process. Checkpoints will be saved every 10,000 steps after validation in the `tests/ckpt/` directory by default. Training logs will be saved every 2,500 steps.
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
