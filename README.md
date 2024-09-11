@@ -84,10 +84,10 @@ python experiments/run_redock.py --in_path tests/inference --ori_path examples/r
 Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final peptide binders in the `tests/inference/.../pdbs_redock/` directory and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `tests/inference/redock_results.csv` file.
 
 ## Training
-To train the DiffPepBuilder model from scratch, please download the training data from [Zenodo](https://zenodo.org/records/13744402) and unzip the data in the `data/` directory:
+To train the DiffPepBuilder model from scratch, please download the training data from [Zenodo](https://zenodo.org/records/13744959) and unzip the data in the `data/` directory:
 
 ```bash
-wget https://zenodo.org/records/13744402/files/PepPC-F_raw_data.tar.gz
+wget https://zenodo.org/records/13744959/files/PepPC-F_raw_data.tar.gz
 mkdir data/PepPC-F_raw_data
 tar -xvf PepPC-F_raw_data.tar.gz --strip-components=1 -C data/PepPC-F_raw_data
 ```
