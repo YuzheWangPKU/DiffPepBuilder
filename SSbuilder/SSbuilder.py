@@ -582,12 +582,3 @@ def merge_s(s1,s2,fp):
     f.writelines(pdb_atoms)
     f.close()
     return fp
-
-if __name__ == '__main__':
-    ssdata = read_ssdata('./SSBLIB/')
-    pep_s = Structure('./A_1GI9_1.8_fixed_sample_0.pdb',chains = ['a']) 
-    rec_s = Structure('./A_1GI9_1.8_fixed_sample_0.pdb',chains = ['b']) 
-    cys_terminal(pep_s,[])  # index to be preserved (peptide from 1)
-    s_new = build_ssbond(pep_s, ssdata, 2)  # maximum number of SS bonds
-    merge_s(rec_s, s_new, './test_ss.pdb')
-    
