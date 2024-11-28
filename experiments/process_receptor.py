@@ -81,7 +81,7 @@ def read_peptide_info(json_path, receptor_name):
     
     receptor_name_lower = receptor_name.lower()
     if receptor_name_lower not in map(str.lower, data):
-        raise ValueError(f"Receptor '{receptor_name}' not found in JSON file.")
+        return None, None, None
     
     receptor_data = next(value for key, value in data.items() if key.lower() == receptor_name_lower)
 
