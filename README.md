@@ -1,6 +1,6 @@
 # Target-Specific De Novo Peptide Binder Design with DiffPepBuilder
 
-This is the official repository for the paper [Target-Specific De Novo Peptide Binder Design with DiffPepBuilder](https://arxiv.org/abs/2405.00128).
+This is the official repository for the paper [Target-Specific De Novo Peptide Binder Design with DiffPepBuilder](https://pubs.acs.org/doi/10.1021/acs.jcim.4c00975).
 
 ![plot](dpb_model.jpg)
 
@@ -126,14 +126,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Citation
 Please cite the following paper if you use this code in your research:
 ```
-@misc{wang2024targetspecificnovopeptidebinder,
-      title={Target-Specific De Novo Peptide Binder Design with DiffPepBuilder}, 
-      author={Fanhao Wang and Yuzhe Wang and Laiyi Feng and Changsheng Zhang and Luhua Lai},
-      year={2024},
-      eprint={2405.00128},
-      archivePrefix={arXiv},
-      primaryClass={q-bio.BM},
-      url={https://arxiv.org/abs/2405.00128}, 
+@article{wang2024target,
+  title={Target-Specific De Novo Peptide Binder Design with DiffPepBuilder},
+  author={Wang, Fanhao and Wang, Yuzhe and Feng, Laiyi and Zhang, Changsheng and Lai, Luhua},
+  journal={Journal of Chemical Information and Modeling},
+  volume={64},
+  number={24},
+  pages={9135-9149},
+  year={2024},
+  publisher={ACS Publications},
+  doi = {10.1021/acs.jcim.4c00975}
 }
 ```
 
