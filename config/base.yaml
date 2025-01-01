@@ -73,10 +73,6 @@ model:
     seq_tfmr_num_layers: 2
     num_blocks: 6
     coordinate_scaling: ${diffuser.r3.coordinate_scaling}
-  mdn:
-    n_gaussians: 10
-    dropout: 0.15
-    max_ca_dist: 10.0
   decode:
     res_dist_threshold: 12.0
 

@@ -585,7 +585,6 @@ class Experiment:
             
             final_prot = infer_out['prot_traj'][0]
             final_chi = du.move_to_np(infer_out['chi_pred'])
-            # final_mdn_score = du.move_to_np(infer_out['mdn_score'])
 
             # Extract argmax predicted aatype
             temperature = max(self._exp_conf.seq_temperature, 1e-6)
@@ -596,7 +595,6 @@ class Experiment:
             for i in range(batch_size):
                 pdb_name = pdb_names[i]
                 num_res = int(np.sum(res_mask[i]).item())
-                # mdn_score = float(final_mdn_score[i].item())
                 unpad_seq_idx = seq_idx[i][res_mask[i]]
                 unpad_chain_idx = chain_idx[i][res_mask[i]]
                 unpad_fixed_mask = fixed_mask[i][res_mask[i]]
@@ -643,7 +641,6 @@ class Experiment:
                 sample_metrics['peptide_len'] = np.sum(unpad_diffused_mask)
                 sample_metrics['gt_pdb'] = pdb_names[i]
                 sample_metrics['sample_id'] = sample_id
-                # sample_metrics['mdn_score'] = mdn_score
 
                 ckpt_eval_metrics.append(sample_metrics)
 
@@ -994,8 +991,6 @@ class Experiment:
                 psi_pred = model_out['psi']
                 chi_pred = model_out['chi']
                 aa_logits_pred = model_out['aa_logits']
-                # mdn_logprob = model_out['mdn_logprob']
-                # mdn_score = torch.nansum(mdn_logprob.exp(), dim=(-1, -2))
 
                 if aux_traj:
                     atom37_0 = all_atom.compute_backbone(
@@ -1021,8 +1016,7 @@ class Experiment:
             'prot_traj': all_bb_prots,
             'psi_pred': psi_pred,
             'chi_pred': chi_pred,
-            'aa_logits_pred': aa_logits_pred,
-            # 'mdn_score': mdn_score
+            'aa_logits_pred': aa_logits_pred
         }
         if aux_traj:
             ret['rigid_traj'] = all_rigids

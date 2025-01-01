@@ -414,7 +414,6 @@ class Sampler(Experiment):
 
             for i in range(batch_size):
                 pdb_name = pdb_names[i]
-                # mdn_score = float(final_mdn_score[i].item())
                 unpad_seq_idx = seq_idx[i][res_mask[i]]
                 unpad_chain_idx = chain_idx[i][res_mask[i]]
                 unpad_fixed_mask = fixed_mask[i][res_mask[i]]
