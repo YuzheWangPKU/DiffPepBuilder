@@ -63,14 +63,14 @@ def create_parser():
     parser.add_argument(
         "--flexpepdock_path",
         type=str,
-        default="/home/lhlai_pkuhpc/lustre2/ljj/rosetta/rosetta_src_2019.31.60840_bundle/main/source/bin/FlexPepDocking.default.linuxgccrelease",
+        default="rosetta/rosetta_bin_linux_2021.16.61629_bundle/main/source/bin/FlexPepDocking.default.linuxgccrelease",
         help="Path to the FlexPepDock binary."
     )
 
     parser.add_argument(
         "--interface_analyzer_path",
         type=str,
-        default="/lustre1/lhlai_pkuhpc/fhwang/Rosetta_wfh/rosetta_bin_linux_2021.16.61629_bundle/main/source/bin/rosetta_scripts.static.linuxgccrelease",
+        default="rosetta/rosetta_bin_linux_2021.16.61629_bundle/main/source/bin/rosetta_scripts.static.linuxgccrelease",
         help="Path to the interface analyzer binary."
     )
 
