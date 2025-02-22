@@ -211,16 +211,18 @@ def get_motif_center_pos(infile:str, motif=None, hotspots=None, lig_chain_str=No
         ref_struct = p.get_structure('', out_motif_file)[0]
         ref_coords_ca = [i['CA'].coord for i in ref_struct.get_residues()]
     
-    if not ref_coords_ca:
+    if ref_coords_ca:
+        for i in ref_coords_ca:
+            for k, j in enumerate(rec_residues):
+                if np.linalg.norm(j['CA'].coord - i) <= pocket_cutoff:
+                    rec_chain.append(resid_unique(j))
+                    mask_rec[k] = 1
+    else:
         warnings.warn(f"No reference ligand chain, motif or hotspots found for {os.path.basename(infile)}. "
                       f"Use the whole receptor.")
         ref_coords_ca = [i['CA'].coord for i in struct.get_residues()]
-
-    for i in ref_coords_ca:
-        for k, j in enumerate(rec_residues):
-            if np.linalg.norm(j['CA'].coord - i) <= pocket_cutoff:
-                rec_chain.append(resid_unique(j))
-                mask_rec[k] = 1
+        rec_chain = [resid_unique(i) for i in struct.get_residues()]
+        mask_rec = np.ones(len(rec_chain))
 
     io = PDB.PDBIO()
     io.set_structure(struct)
