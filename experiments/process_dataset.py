@@ -447,6 +447,15 @@ def process_fn(
 
 def main(args):
     pdb_dir = args.pdb_dir
+    for file_name in os.listdir(pdb_dir):
+        if file_name.endswith('_processed.pdb'):
+            file_path = os.path.join(pdb_dir, file_name)
+            try:
+                os.remove(file_path)
+                print(f'Removed file: {file_path}')
+            except OSError as e:
+                print(f'Error while deleting file {file_path}: {e}')
+                
     all_file_paths = [
         os.path.join(pdb_dir, x)
         for x in os.listdir(args.pdb_dir) if '.pdb' in x]
