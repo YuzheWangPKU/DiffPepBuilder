@@ -4,6 +4,7 @@ import numpy as np
 import random
 import torch.distributed as dist
 from openfold.utils import rigid_utils
+from analysis import utils as au
 
 Rigid = rigid_utils.Rigid
 
@@ -107,3 +108,49 @@ def get_sampled_mask(contigs, length, rng=None, num_tries=1000000):
         if count == num_tries: #contig string incompatible with this length
             raise ValueError("Contig string incompatible with --length range")
     return sampled_mask, sampled_mask_length, inpaint_chains
+
+
+def save_traj(
+        bb_prot_traj: np.ndarray,
+        coordinate_bias: np.ndarray,
+        aatype: np.ndarray,
+        diffuse_mask: np.ndarray,
+        prot_traj_path: str,
+        reverse: bool = True
+    ):
+    """
+    Write denoising diffusion trajectory.
+
+    Args:
+        bb_prot_traj: [T, N, 37, 3] atom37 sampled diffusion states.
+            T is number of time steps. First time step is t=eps,
+            i.e. bb_prot_traj[0] is the final sample after reverse diffusion.
+            N is number of residues.
+        coordinate_bias: [N, 3] coordinate bias between the raw PDB file
+            and the generated structure.
+        aatype: [T, N, 21] amino acid probability vector trajectory.
+        diffuse_mask: [N] which residues are diffused.
+        prot_traj_path: where to save denoising trajectory.
+        reverse: reverse the trajectory for better visualization.
+            Default is True.
+
+    Returns:
+        traj_path: PDB file of all intermediate diffused states.
+        b_factors are set to 100 for diffused residues and 0 for motif
+        residues if there are any.
+    """
+    # Use b-factors to specify which residues are diffused.
+    b_factors = np.tile((diffuse_mask * 100)[:, None], (1, 37))
+
+    if reverse:
+        bb_prot_traj = bb_prot_traj[::-1]
+
+    prot_traj_path = au.write_prot_to_pdb(
+        prot_pos=bb_prot_traj,
+        file_path=prot_traj_path,
+        coordinate_bias=coordinate_bias,
+        aatype=aatype,
+        b_factors=b_factors
+    )
+
+    return prot_traj_path

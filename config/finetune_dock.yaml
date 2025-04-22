@@ -1,0 +1,70 @@
+# Configuration for fine-tuning on native complex dataset.
+
+defaults:
+  - base
+
+data:
+  train_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_train.csv
+  val_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_val.csv
+  mask_lig_seq: False
+  min_t: 0.01
+  num_t: 100
+  num_eval_samples: null
+  num_repeat_per_eval_sample: 8
+
+  # Add Gaussian noise to center position.
+  center_pos_noise: True
+  center_pos_noise_std: 5.0
+
+experiment:
+  name: finetune_dock
+  
+  log_freq: 2500
+  batch_size: 96
+  eval_batch_size: ${data.num_repeat_per_eval_sample}
+  num_loader_workers: 4
+  num_epoch: 5000
+  learning_rate: 0.000001
+  use_ddp : True
+  use_gpu: True
+  num_gpus: 8
+  sample_mode: time_batch
+
+  # How many steps to checkpoint between.
+  ckpt_freq: 10000
+  # Take early checkpoint at step 100. Helpful for catching eval bugs early.
+  early_ckpt: True
+
+  # Checkpoint directory to warm start from.
+  warm_start: True
+  warm_start_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepbuilder_v1.pth
+  reset_training: True
+  use_warm_start_conf: False
+
+  ckpt_dir: ${oc.env:BASE_PATH}/runs/${now:%b%d}/ckpt
+
+  # Loss weights.
+  trans_loss_weight: 1.0
+  rot_loss_weight: 0.5
+  rot_loss_t_threshold: 0.2
+  separate_rot_loss: True
+  trans_x0_threshold: 1.0
+  coordinate_scaling: ${diffuser.r3.coordinate_scaling}
+  
+  bb_atom_loss_weight: 0.25
+  bb_atom_loss_t_filter: 0.25
+  dist_mat_loss_weight: 0.25
+  dist_mat_loss_t_filter: 0.25
+  dist_threshold: 6.0
+  ca_clash_loss_weight: 0.5
+  ca_clash_loss_t_filter: 0.5
+  ca_clash_dist_threshold: 4.0
+
+  chi_loss_weight: 0.25
+  anglenorm_weight: 0.02
+  chi_loss_t_filter: 0.25
+
+  # Evaluation.
+  eval_dir: ${oc.env:BASE_PATH}/runs/${now:%b%d}/eval_outputs
+  noise_scale: 1.0
+  flip_align: False

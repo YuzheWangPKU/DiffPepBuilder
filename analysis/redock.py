@@ -74,6 +74,8 @@ class FlexPepDock:
 
         ori_pdb_name = re.match(r"^(.+?)(?:_sample_\d+(?:_ss)?)?$", self.data_id).group(1)
         self.ori_file = os.path.join(self.ori_path, f'{ori_pdb_name}.pdb')
+        if not os.path.exists(self.ori_file):
+            raise FileNotFoundError(f"Original PDB file not found: {self.ori_file}")
         self.relaxed_file = os.path.join(self.relaxed_path, f'{self.data_id}.pdb')
         self.redock_file = os.path.join(self.docking_path, f'redock_{self.data_id}_0001.pdb')
         self.json_file_interf = os.path.join(self.docking_path, f'{self.data_id}_interf.json')
@@ -97,7 +99,7 @@ class FlexPepDock:
         PI.save(self.rcon_file)
         fix_pdb(self.rcon_file, self.fixed_file)
         
-    def relax(self,):
+    def relax(self):
         ABRlx = AmberRelaxation(max_iterations=RELAX_MAX_ITERATIONS,
                                 tolerance=RELAX_ENERGY_TOLERANCE,
                                 max_outer_iterations=RELAX_MAX_OUTER_ITERATIONS,

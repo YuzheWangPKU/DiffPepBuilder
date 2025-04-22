@@ -36,6 +36,7 @@ from data import utils as du
 from data import pdb_data_loader
 from data.pdb_data_loader import PdbDataset
 from experiments.train import Experiment
+from experiments.utils import save_traj
 from omegaconf import DictConfig, OmegaConf
 from SSbuilder.SSbuilder import Structure, read_ssdata, cys_terminal, build_ssbond, merge_s
 
@@ -191,12 +192,6 @@ class Sampler(Experiment):
             self,
             conf: DictConfig,
         ):
-        """
-        Initialize sampler.
-
-        Args:
-            conf: inference config.
-        """
         super().__init__(conf=conf)
 
         # Remove static type checking.
@@ -216,53 +211,6 @@ class Sampler(Experiment):
         num_repeat = self._sample_conf.max_length - self._sample_conf.min_length + 1
         self._conf.data.num_repeat_per_eval_sample = num_repeat
         self._data_conf.num_repeat_per_eval_sample = num_repeat
-
-
-    def save_traj(
-            self,
-            bb_prot_traj: np.ndarray,
-            coordinate_bias: np.ndarray,
-            aatype: np.ndarray,
-            diffuse_mask: np.ndarray,
-            prot_traj_path: str,
-            reverse: bool = True
-        ):
-        """
-        Write denoising diffusion trajectory.
-
-        Args:
-            bb_prot_traj: [T, N, 37, 3] atom37 sampled diffusion states.
-                T is number of time steps. First time step is t=eps,
-                i.e. bb_prot_traj[0] is the final sample after reverse diffusion.
-                N is number of residues.
-            coordinate_bias: [N, 3] coordinate bias between the raw PDB file
-                and the generated structure.
-            aatype: [T, N, 21] amino acid probability vector trajectory.
-            diffuse_mask: [N] which residues are diffused.
-            prot_traj_path: where to save denoising trajectory.
-            reverse: reverse the trajectory for better visualization.
-                Default is True.
-
-        Returns:
-            traj_path: PDB file of all intermediate diffused states.
-            b_factors are set to 100 for diffused residues and 0 for motif
-            residues if there are any.
-        """
-        # Use b-factors to specify which residues are diffused.
-        b_factors = np.tile((diffuse_mask * 100)[:, None], (1, 37))
-
-        if reverse:
-            bb_prot_traj = bb_prot_traj[::-1]
-
-        prot_traj_path = au.write_prot_to_pdb(
-            prot_pos=bb_prot_traj,
-            file_path=prot_traj_path,
-            coordinate_bias=coordinate_bias,
-            aatype=aatype,
-            b_factors=b_factors
-        )
-
-        return prot_traj_path
     
 
     def build_ss_bond(self, entropy_dict: dict) -> list:
@@ -326,12 +274,12 @@ class Sampler(Experiment):
                     device = torch.device("cuda",self.ddp_info['local_rank'])
                     model = self.model.to(device)
                     self._model = DDP(model, device_ids=[self.ddp_info['local_rank']], output_device=self.ddp_info['local_rank'], find_unused_parameters=True)
-                    self._log.info(f"Multi-GPU training on GPUs in DDP mode, node_id : {self.ddp_info['node_id']}, devices: {device_ids}")
+                    self._log.info(f"Multi-GPU sampling on GPUs in DDP mode, node_id : {self.ddp_info['node_id']}, devices: {device_ids}")
                 # DP mode
                 else:
                     if len(self._available_gpus) < self._exp_conf.num_gpus:
                         raise ValueError(f"require {self._exp_conf.num_gpus} GPUs, but only {len(self._available_gpus)} GPUs available ")
-                    self._log.info(f"Multi-GPU training on GPUs in DP mode: {device_ids}")
+                    self._log.info(f"Multi-GPU sampling on GPUs in DP mode: {device_ids}")
                     gpu_id = self._available_gpus[replica_id]
                     device = f"cuda:{gpu_id}"
                     self._model = DP(self._model, device_ids=device_ids)
@@ -402,10 +350,14 @@ class Sampler(Experiment):
             final_prot = infer_out['prot_traj'][0]  # [N_res, 37, 3]
             final_chi = du.move_to_np(infer_out['chi_pred'][0])
 
-            temperature = max(self._sample_conf.seq_temperature, 1e-6)
-            final_aa_prob = F.softmax(infer_out['aa_logits_pred'] / temperature, dim=-1)
-            final_aatype = torch.multinomial(final_aa_prob.view(-1, self._model_conf.embed.num_aatypes), 1)
-            final_aatype = du.move_to_np(final_aatype.view(batch_size, -1))
+            if self._data_conf.mask_lig_seq:
+                temperature = max(self._sample_conf.seq_temperature, 1e-6)
+                final_aa_prob = F.softmax(infer_out['aa_logits_pred'] / temperature, dim=-1)
+                final_aatype = torch.multinomial(final_aa_prob.view(-1, self._model_conf.embed.num_aatypes), 1)
+                final_aatype = du.move_to_np(final_aatype.view(batch_size, -1))
+            else:
+                final_aatype = gt_aatype
+                final_aa_prob = torch.zeros_like(gt_aatype, dtype=torch.float).unsqueeze(-1)
 
             if self._ss_bond_conf.save_entropy:
                 final_aa_prob = torch.clamp(final_aa_prob, min=1e-10)
@@ -452,7 +404,7 @@ class Sampler(Experiment):
                 self._log.info(f'Done sample {pdb_name} (peptide length: {peptide_len}, sample: {sample_id}), saved to {saved_path}')
 
                 if self._infer_conf.save_traj:
-                    traj_path = self.save_traj(
+                    traj_path = save_traj(
                         bb_prot_traj=infer_out['prot_traj'][:, i, ...],  # [T, batch_size, N_res, 37, 3] -> [T, N_res, 37, 3]
                         coordinate_bias=unpad_coordinate_bias,  # [N_res, 3]
                         aatype=unpad_aatype,

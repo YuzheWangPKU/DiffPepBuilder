@@ -4,32 +4,26 @@ defaults:
   - eval_gen
 
 data:
-  train_csv_path: null
   # CSV for path and metadata to receptors.
   val_csv_path: ${oc.env:BASE_PATH}/data/receptor_data/metadata_test.csv
-  num_eval_samples: null
 
   # Add Gaussian noise to center position.
   center_pos_noise: True
   center_pos_noise_std: 5.0
 
 experiment:
-  # Experiment metadata
   name: inference
-
-  # Training mode
-  use_ddp : True
-
-  # Training arguments
+  
   eval_batch_size: ${inference.sampling.samples_per_length}
   num_loader_workers: 4
+  use_ddp : True
   use_gpu: True
   num_gpus: 8
   sample_mode: time_batch
 
   # Evaluation.
   eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepbuilder_v1.pth
-  eval_dir: ${oc.env:BASE_PATH}/tests
+  eval_dir: ${oc.env:BASE_PATH}/runs
 
 inference:
   seed: 42

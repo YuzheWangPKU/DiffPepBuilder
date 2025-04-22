@@ -238,3 +238,4 @@ dependencies:
       - tmtools==0.0.3
       - tqdm==4.66.1
       - wandb==0.15.12
+      - wget==3.2

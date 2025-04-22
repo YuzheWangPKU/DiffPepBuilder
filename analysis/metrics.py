@@ -5,7 +5,6 @@ import numpy as np
 from typing import List
 import multiprocessing as mp
 
-import mdtraj as md
 from tmtools import tm_align
 from Bio.PDB import PDBParser
 from Bio.Align import PairwiseAligner
@@ -21,18 +20,6 @@ CA_IDX = residue_constants.atom_order['CA']
 
 CPU_NUM = os.cpu_count()
 
-INTER_VIOLATION_METRICS = [
-    'bonds_c_n_loss_mean',
-    'angles_ca_c_n_loss_mean',
-    'clashes_mean_loss',
-]
-
-SHAPE_METRICS = [
-    'coil_percent',
-    'helix_percent',
-    'strand_percent',
-    'radius_of_gyration'
-]
 
 CA_VIOLATION_METRICS = [
     'ca_ca_bond_dev',
@@ -42,42 +29,19 @@ CA_VIOLATION_METRICS = [
 ]
 
 EVAL_METRICS = [
-    'tm_score', 
+    'peptide_tm_score',
+    'peptide_rmsd',
+    'peptide_aligned_rmsd',
+    'flip_alignment',
+    'sequence_recovery',
+    'sequence_similarity',
 ]
 
-ALL_METRICS = (
-    INTER_VIOLATION_METRICS
-    + SHAPE_METRICS
-    + CA_VIOLATION_METRICS
-    + EVAL_METRICS
-)
+ALL_METRICS = CA_VIOLATION_METRICS + EVAL_METRICS
 
 def calc_tm_score(pos_1, pos_2, seq_1, seq_2):
     tm_results = tm_align(pos_1, pos_2, seq_1, seq_2)
-    return tm_results.tm_norm_chain1, tm_results.tm_norm_chain2 
-
-def calc_perplexity(pred, labels, mask):
-    one_hot_labels = np.eye(pred.shape[-1])[labels]
-    true_probs = np.sum(pred * one_hot_labels, axis=-1)
-    ce = -np.log(true_probs + 1e-5)
-    per_res_perplexity = np.exp(ce)
-    return np.sum(per_res_perplexity * mask) / np.sum(mask)
-
-def calc_mdtraj_metrics(pdb_path):
-    traj = md.load(pdb_path)
-    pdb_ss = md.compute_dssp(traj, simplified=True)
-    pdb_coil_percent = np.mean(pdb_ss == 'C')
-    pdb_helix_percent = np.mean(pdb_ss == 'H')
-    pdb_strand_percent = np.mean(pdb_ss == 'E')
-    pdb_ss_percent = pdb_helix_percent + pdb_strand_percent 
-    pdb_rg = md.compute_rg(traj)[0]
-    return {
-        'non_coil_percent': pdb_ss_percent,
-        'coil_percent': pdb_coil_percent,
-        'helix_percent': pdb_helix_percent,
-        'strand_percent': pdb_strand_percent,
-        'radius_of_gyration': pdb_rg,
-    }
+    return tm_results.tm_norm_chain1, tm_results.tm_norm_chain2
 
 def calc_aligned_rmsd(pos_1, pos_2):
     aligned_pos_1 = du.rigid_transform_3D(pos_1, pos_2)[0]
