@@ -1,5 +1,5 @@
 """
-Script to process receptor PDB file for subsequent de novo peptide generation.
+Script to process receptor PDB file for subsequent peptide batch docking.
 NOTE: If more than one of the following is provided, the order of priority is: lig_chain -> hotspots -> motif.
     Please remove the native peptide ligand chain if hotspots or motif is specified. 
 """
@@ -18,18 +18,15 @@ import time
 import argparse
 import dataclasses
 import pandas as pd
-from Bio import PDB
-from Bio.PDB import Select
 import numpy as np
-import json
 import warnings
 from tqdm import tqdm
 
 from data import utils as du
 from data import errors
 from data import parsers
-from data import residue_constants
 from experiments.process_dataset import PretrainedSequenceEmbedder
+from experiments.process_receptor import read_receptor_info, renumber_rec_chain, get_motif_center_pos
 
 
 def create_parser():
@@ -58,6 +55,13 @@ def create_parser():
     )
 
     parser.add_argument(
+        "--peptide_seq_path",
+        type=str,
+        default=None,
+        help="Path to the FASTA file containing peptide sequences to be docked."
+    )
+
+    parser.add_argument(
         '--max_batch_size',
         help='Maximum batch size for ESM embedding.',
         type=int,
@@ -72,170 +76,6 @@ def create_parser():
     )
 
     return parser
-
-
-def read_receptor_info(json_path, receptor_name):
-    with open(json_path, 'r') as file:
-        data = json.load(file)
-    
-    receptor_name_lower = receptor_name.lower()
-    if receptor_name_lower not in map(str.lower, data):
-        return None, None, None
-    
-    receptor_data = next(value for key, value in data.items() if key.lower() == receptor_name_lower)
-
-    motif = receptor_data.get('motif')
-    hotspots = receptor_data.get('hotspots')
-    lig_chain = receptor_data.get('lig_chain')
-
-    return motif, hotspots, lig_chain
-
-
-def renumber_rec_chain(pdb_path, json_path, in_place=False):
-    """
-    Re-number the receptor chain IDs for compatibility. Optionally save the modified files (PDB and JSON) in-place.
-    Return True if the PDB and JSON files are updated.
-    """
-    parser = PDB.PDBParser()
-    structure = parser.get_structure('', pdb_path)
-    chain_ids = [chain.id for chain in structure[0]]
-    
-    pdb_name = os.path.basename(pdb_path).replace('.pdb', '').replace('_receptor', '').lower()
-    out_pdb_path = pdb_path if in_place else pdb_path.replace('.pdb', '_modified.pdb')
-    out_json_path = json_path if in_place else json_path.replace('.json', '_modified.json')
-    chain_id_map = {}
-
-    if 'A' in chain_ids:
-        # PDB update. Shift characters by one position e.g., 'A'->'B', 'B'->'C', etc.
-        new_chain_ids = []
-        for i, chain in enumerate(structure[0]):
-            chain.id = str(i)  # Temporary IDs to avoid conflicts
-        for chain_id in chain_ids:
-            if chain_id >= 'A':
-                new_chain_id = chr((ord(chain_id) - ord('A') + 1) % 26 + ord('A'))
-                new_chain_ids.append(new_chain_id)
-                chain_id_map[chain_id] = new_chain_id
-            else:
-                new_chain_ids.append(chain_id)
-                chain_id_map[chain_id] = chain_id
-        for chain, new_id in zip(structure[0], new_chain_ids):
-            chain.id = new_id
-        io = PDB.PDBIO()
-        io.set_structure(structure)
-        io.save(out_pdb_path)
-
-        # JSON update
-        with open(json_path, 'r') as json_file:
-            json_data = json.load(json_file)
-        json_data_lower = {k.lower(): v for k, v in json_data.items()}
-        if pdb_name in json_data_lower:
-            receptor_data = json_data_lower[pdb_name]
-            for key in ['motif', 'hotspots']:
-                if key in receptor_data:
-                    items = receptor_data[key].split('-')
-                    updated_items = ['-'.join(chain_id_map.get(item[0], item[0]) + item[1:] for item in items)]
-                    receptor_data[key] = ''.join(updated_items)
-            if 'lig_chain' in receptor_data:
-                prev_lig_chain = receptor_data['lig_chain']
-                receptor_data['lig_chain'] = chain_id_map.get(prev_lig_chain, prev_lig_chain)
-            with open(out_json_path, 'w') as updated_json_file:
-                json.dump(json_data, updated_json_file, indent=4)
-
-
-def resid_unique(res):
-    if type(res) == str:
-        res_ = res.split()
-        return f'{res_[1]}_{res_[2]}'
-    return f'{res.get_parent().id}{res.id[1]}'
-
-
-class resSelector(Select):
-    def __init__(self, res_ids):
-        self.res_ids = res_ids
-    def accept_residue(self, residue):
-        resid = resid_unique(residue)
-        if resid not in self.res_ids:
-            return False
-        else:
-            return True
-        
-
-def get_rec_seq(entity, lch=None):
-    aatype_rec, chain_id_rec = [], []
-    for res in entity.get_residues():
-        res_name = residue_constants.substitute_non_standard_restype.get(res.resname, res.resname)
-        try:
-            float(res_name)
-            raise errors.DataError(f"Residue name should not be a number: {res.resname}")
-        except ValueError:
-            pass
-        res_shortname = residue_constants.restype_3to1.get(res_name, '<unk>')
-        if res.parent.id != lch:
-            aatype_rec.append(res_shortname)
-            chain_id_rec.append(res.parent.id)
-    mask_rec = np.zeros(len(chain_id_rec))
-    assert len(aatype_rec) == len(mask_rec) == len(chain_id_rec), "Shape mismatch when processing raw data!"
-
-    return aatype_rec, mask_rec, chain_id_rec
-
-
-def get_motif_center_pos(infile:str, motif=None, hotspots=None, lig_chain_str=None, pocket_cutoff=10):
-    p = PDB.PDBParser(QUIET=1)
-    struct = p.get_structure('', infile)[0]
-    out_motif_file = infile.replace('.pdb', '_processed.pdb')
-
-    seq_rec, mask_rec, chain_id_rec = get_rec_seq(struct, lig_chain_str)
-    rec_residues = [i for i in struct.get_residues() if i.parent.id != lig_chain_str]
-    rec_chain, ref_coords_ca = [], []
-
-    if lig_chain_str:
-        lig_coords_ca = [i['CA'].coord for i in struct.get_residues() if i.parent.id == lig_chain_str]
-        ref_coords_ca = []
-        for i in lig_coords_ca:
-            for k, j in enumerate(rec_residues):
-                if np.linalg.norm(j['CA'].coord - i) <= 8:
-                    ref_coords_ca.append(j['CA'].coord)
-    elif hotspots:
-        io = PDB.PDBIO()
-        io.set_structure(struct)
-        io.save(out_motif_file, select=resSelector(hotspots))
-        ref_struct = p.get_structure('', out_motif_file)[0]
-        ref_coords_ca = [i['CA'].coord for i in ref_struct.get_residues()]
-    elif motif:
-        io = PDB.PDBIO()
-        io.set_structure(struct)
-        io.save(out_motif_file, select=resSelector(motif))
-        ref_struct = p.get_structure('', out_motif_file)[0]
-        ref_coords_ca = [i['CA'].coord for i in ref_struct.get_residues()]
-    
-    if ref_coords_ca:
-        for i in ref_coords_ca:
-            for k, j in enumerate(rec_residues):
-                if np.linalg.norm(j['CA'].coord - i) <= pocket_cutoff:
-                    rec_chain.append(resid_unique(j))
-                    mask_rec[k] = 1
-    else:
-        warnings.warn(f"No reference ligand chain, motif or hotspots found for {os.path.basename(infile)}. "
-                      f"Use the whole receptor.")
-        ref_coords_ca = [i['CA'].coord for i in struct.get_residues()]
-        rec_chain = [resid_unique(i) for i in struct.get_residues()]
-        mask_rec = np.ones(len(rec_chain))
-
-    io = PDB.PDBIO()
-    io.set_structure(struct)
-    io.save(out_motif_file, select=resSelector(rec_chain))
-
-    center_pos = np.sum(np.array(ref_coords_ca), axis=0) / len(ref_coords_ca)
-    struct = p.get_structure('', out_motif_file)[0]
-
-    raw_seq_data = {}
-    for i, chain_id in enumerate(chain_id_rec):
-        if chain_id not in raw_seq_data:
-            raw_seq_data[chain_id] = {"seq": "", "mask": []}
-        raw_seq_data[chain_id]["seq"] += seq_rec[i]
-        raw_seq_data[chain_id]["mask"].append(mask_rec[i])
-
-    return struct, center_pos, raw_seq_data
 
 
 def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
@@ -413,5 +253,3 @@ if __name__ == "__main__":
     parser = create_parser()
     args = parser.parse_args()
     main(args)
-
-    

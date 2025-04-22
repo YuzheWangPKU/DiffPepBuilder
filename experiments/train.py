@@ -420,7 +420,6 @@ class Experiment:
                 all_metrics = self.aggregate_metrics(eval_dir)
                 self._log.info(
                     f"[Eval-{self.trained_steps}]: peptide_rmsd={all_metrics['peptide_rmsd'].mean()}, "
-                    f"peptide_aligned_rmsd={all_metrics['peptide_aligned_rmsd'].mean()}, "
                     f"sequence_recovery={all_metrics['sequence_recovery'].mean()}, "
                     f"sequence_similarity={all_metrics['sequence_similarity'].mean()}"
                 )

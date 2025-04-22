@@ -53,7 +53,7 @@ mv diffpepbuilder_v1.pth experiments/checkpoints/
 We provide an example of the target ALK1 (Activin Receptor-like Kinase 1, PDB ID: [6SF1](https://www.rcsb.org/structure/6SF1)) to demonstrate the procedures of generating peptide binders. Please note that the following pipeline can also be used to generate peptide binders for multiple targets simultaneously. The hotspots or binding motif of the target protein can be specified in JSON format, as showcased by the example file `examples/receptor_data/de_novo_cases.json`. To preprocess the receptor, run the `experiments/process_receptor.py` script:
 
 ```bash
-python experiments/process_receptor.py --pdb_dir examples/receptor_data --write_dir data/receptor_data --peptide_info_path examples/receptor_data/de_novo_cases.json
+python experiments/process_receptor.py --pdb_dir examples/receptor_data --write_dir data/receptor_data --receptor_info_path examples/receptor_data/de_novo_cases.json
 ```
 
 This script will generate the receptor data in the `data/receptor_data` directory. To generate peptide binders for the target protein, please specify the root directory of DiffPepBuilder repository and then run the `experiments/run_inference.py` script (modify the `nproc-per-node` flag accordingly based on the number of GPUs available):

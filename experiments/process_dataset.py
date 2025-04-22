@@ -19,7 +19,6 @@ import argparse
 import dataclasses
 import pandas as pd
 import numpy as np
-import mdtraj as md
 import time
 import multiprocessing as mp
 import functools as fn
@@ -145,8 +144,12 @@ class PretrainedSequenceEmbedder(nn.Module):
             print(f"Model file {regression_path} not found. Downloading...")
             wget.download(f"https://dl.fbaipublicfiles.com/fair-esm/regression/{model_name}-contact-regression.pt", out=regression_path)
         
-        model, alphabet = esm.pretrained.load_model_and_alphabet(model_path)
-        model.to(self.device)
+        try:
+            model, alphabet = esm.pretrained.load_model_and_alphabet(model_path)
+            model.to(self.device)
+        except Exception as e:
+            with torch.serialization.safe_globals([argparse.Namespace]):
+                model, alphabet = esm.pretrained.load_model_and_alphabet(model_path)
 
         return model, alphabet
 
@@ -369,27 +372,7 @@ def process_file(file_path:str, write_dir:str, lig_chain_str:str='A', hotspot_cu
     else:
         # complex_feats['ligand_mask'] = np.zeros(complex_length)
         raise errors.DataError("No ligand chain specified")
-    
-    try:
-        # MDtraj
-        traj = md.load(file_path)
-        # SS calculation
-        pdb_ss = md.compute_dssp(traj, simplified=True)
-        # DG calculation
-        pdb_dg = md.compute_rg(traj)
-        # os.remove(file_path)
-    except Exception as e:
-        # os.remove(file_path)
-        raise errors.DataError(f'Mdtraj failed with error {e}')
 
-    chain_dict['ss'] = pdb_ss[0]
-    metadata['coil_percent'] = np.sum(pdb_ss == 'C') / metadata['modeled_seq_len']
-    metadata['helix_percent'] = np.sum(pdb_ss == 'H') / metadata['modeled_seq_len']
-    metadata['strand_percent'] = np.sum(pdb_ss == 'E') / metadata['modeled_seq_len']
-
-    # Radius of gyration
-    metadata['radius_gyration'] = pdb_dg[0]
-    
     # Write features to pickles.
     du.write_pkl(processed_path, complex_feats)
 

@@ -81,8 +81,7 @@ class Evaluation(Experiment):
         valid_loader, valid_sampler = self.create_valid_dataset()
 
         start_time = time.time()
-        eval_dir = os.path.join(
-            self._exp_conf.eval_dir, f'step_{self.start_step}')
+        eval_dir = self._exp_conf.eval_dir
         os.makedirs(eval_dir, exist_ok=True)
         metrics = self.eval_fn(
             eval_dir, valid_loader, device,
@@ -90,8 +89,7 @@ class Evaluation(Experiment):
         )
         all_metrics = self.aggregate_metrics(eval_dir)
         self._log.info(
-            f"[Eval-{self.trained_steps}]: peptide_rmsd={all_metrics['peptide_rmsd'].mean()}, "
-            f"peptide_aligned_rmsd={all_metrics['peptide_aligned_rmsd'].mean()}, "
+            f"[Eval]: peptide_rmsd={all_metrics['peptide_rmsd'].mean()}, "
             f"sequence_recovery={all_metrics['sequence_recovery'].mean()}, "
             f"sequence_similarity={all_metrics['sequence_similarity'].mean()}"
         )
