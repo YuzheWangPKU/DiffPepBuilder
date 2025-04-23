@@ -136,7 +136,8 @@ experiment:
   anglenorm_weight: 0.02
   chi_loss_t_filter: 0.25
 
-  # Evaluation.
+  # Evaluation. Set eval_only True to skip training.
+  eval_only: False
   eval_ckpt_path: null
   eval_dir: ${oc.env:BASE_PATH}/runs/eval_outputs
   noise_scale: 1.0

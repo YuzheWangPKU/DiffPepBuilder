@@ -145,18 +145,21 @@ class Experiment:
 
         dt_string = datetime.now().strftime("%dD_%mM_%YY_%Hh_%Mm")
 
-        if self._exp_conf.ckpt_dir is not None:
-            # Set-up checkpoint location
-            ckpt_dir = os.path.join(
-                self._exp_conf.ckpt_dir,
-                self._exp_conf.name,
-                dt_string)
-            if not os.path.exists(ckpt_dir):
-                os.makedirs(ckpt_dir, exist_ok=True)
-            self._exp_conf.ckpt_dir = ckpt_dir
-            self._log.info(f'Checkpoints saved to: {ckpt_dir}')
+        if not self._exp_conf.eval_only:
+            if self._exp_conf.ckpt_dir is not None:
+                # Set-up checkpoint location
+                ckpt_dir = os.path.join(
+                    self._exp_conf.ckpt_dir,
+                    self._exp_conf.name,
+                    dt_string)
+                if not os.path.exists(ckpt_dir):
+                    os.makedirs(ckpt_dir, exist_ok=True)
+                self._exp_conf.ckpt_dir = ckpt_dir
+                self._log.info(f'Checkpoints saved to: {ckpt_dir}')
+            else:
+                self._log.info('Checkpoint not being saved.')
         else:
-            self._log.info('No checkpoints being saved.')
+            self._log.info('Evaluation mode only, no checkpoint being saved.')
 
         if self._exp_conf.eval_dir is not None :
             eval_dir = os.path.join(
@@ -309,6 +312,34 @@ class Experiment:
             self._model = self.model.to(device)
             self._log.info(f"Using device: {device}")
 
+        if self._exp_conf.eval_only:
+            assert self._exp_conf.eval_ckpt_path is not None, "Need to specify evaluation checkpoint path."
+            self._log.info("Skipping training, performing only validation.")
+            self._model.eval()
+            
+            valid_loader, valid_sampler = self.create_valid_dataset()
+
+            start_time = time.time()
+            eval_dir = os.path.join(
+                self._exp_conf.eval_dir, f'step_{self.start_step}')
+            os.makedirs(eval_dir, exist_ok=True)
+            ckpt_metrics = self.eval_fn(
+                eval_dir, valid_loader, device,
+                noise_scale=self._exp_conf.noise_scale
+            )
+            all_metrics = self.aggregate_metrics(eval_dir)
+            self._log.info(
+                f"[Eval-{self.trained_steps}]: peptide_rmsd={all_metrics['peptide_rmsd'].mean()}, "
+                f"peptide_aligned_rmsd={all_metrics['peptide_aligned_rmsd'].mean()}, "
+                f"sequence_recovery={all_metrics['sequence_recovery'].mean()}, "
+                f"sequence_similarity={all_metrics['sequence_similarity'].mean()}"
+            )
+            eval_time = time.time() - start_time
+            self._log.info(f'Finished evaluation in {eval_time:.2f}s')
+            self._model.train()
+
+            return
+        
         self._model.train()
         train_loader, train_sampler = self.create_train_dataset()
         valid_loader, valid_sampler = self.create_valid_dataset()

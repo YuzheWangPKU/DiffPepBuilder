@@ -1,7 +1,7 @@
 # Configuration for de novo peptide generation.
 
 defaults:
-  - eval_gen
+  - eval
 
 data:
   # CSV for path and metadata to receptors.
@@ -19,7 +19,6 @@ experiment:
   use_ddp : True
   use_gpu: True
   num_gpus: 8
-  sample_mode: time_batch
 
   # Evaluation.
   eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepbuilder_v1.pth

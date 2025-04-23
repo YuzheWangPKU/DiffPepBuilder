@@ -6,30 +6,30 @@ defaults:
 data:
   train_csv_path: null
   val_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_test.csv
-  mask_lig_seq: False
+  mask_lig_seq: True
   min_t: 0.01
   num_t: 500
   num_eval_samples: null
-  num_repeat_per_eval_sample: 128
+  num_repeat_per_eval_sample: 16
 
   # Add Gaussian noise to center position.
   center_pos_noise: True
-  center_pos_noise_std: 5.0
+  center_pos_noise_std: 2.0
 
 experiment:
-  name: eval_dock
+  name: eval_gen
   
   eval_batch_size: ${data.num_repeat_per_eval_sample}
   num_loader_workers: 4
   use_ddp : True
   use_gpu: True
   num_gpus: 8
-  sample_mode: time_batch
   ckpt_dir: null
 
   # Evaluation.
-  eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepdock_v1.pth
-  eval_dir: ${oc.env:BASE_PATH}/runs/${now:%b%d}/eval_outputs
+  eval_only: True
+  eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepbuilder_v1.pth
+  eval_dir: ${oc.env:BASE_PATH}/runs/eval_outputs
   noise_scale: 1.0
-  flip_align: False
+  seq_temperature: 0.1
 

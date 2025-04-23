@@ -294,12 +294,10 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
     for chain in structure.get_chains():
         struct_chains[chain.id.upper()] = chain
         
-    com_center = center_pos
     metadata['num_chains'] = len(struct_chains)
 
     # Extract features
     struct_feats = []
-    all_seqs = set()
     complex_length = 0
     for chain_id, chain in struct_chains.items():
         complex_length += len([i for i in chain.get_residues()]) 
@@ -310,17 +308,12 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
         chain_id = du.chain_str_to_int(chain_id_str)
         chain_prot = parsers.process_chain(chain, chain_id)
         chain_dict = dataclasses.asdict(chain_prot)
-        chain_dict = du.parse_chain_feats(chain_dict, center_pos=com_center)
-        all_seqs.add(tuple(chain_dict['aatype']))
+        chain_dict = du.parse_chain_feats(chain_dict, center_pos=center_pos)
         struct_feats.append(chain_dict)
         chain_mask = np.zeros(complex_length)
         chain_mask[res_count: res_count + len(chain_dict['aatype'])] = 1
         chain_masks[chain_id_str] = chain_mask
         res_count += len(chain_dict['aatype']) 
-    if len(all_seqs) == 1:
-        metadata['quaternary_category'] = 'homomer'
-    else:
-        metadata['quaternary_category'] = 'heteromer'
     complex_feats = du.concat_np_features(struct_feats, False)
     complex_feats['center_pos'] = center_pos
     
