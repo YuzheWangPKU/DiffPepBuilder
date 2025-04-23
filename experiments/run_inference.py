@@ -346,16 +346,10 @@ class Sampler(Experiment):
             )
 
             final_prot = infer_out['prot_traj'][0]  # [N_res, 37, 3]
-            final_chi = du.move_to_np(infer_out['chi_pred'][0])
-
-            if self._data_conf.mask_lig_seq:
-                temperature = max(self._sample_conf.seq_temperature, 1e-6)
-                final_aa_prob = F.softmax(infer_out['aa_logits_pred'] / temperature, dim=-1)
-                final_aatype = torch.multinomial(final_aa_prob.view(-1, self._model_conf.embed.num_aatypes), 1)
-                final_aatype = du.move_to_np(final_aatype.view(batch_size, -1))
-            else:
-                final_aatype = gt_aatype
-                final_aa_prob = torch.zeros_like(gt_aatype, dtype=torch.float).unsqueeze(-1)
+            temperature = max(self._sample_conf.seq_temperature, 1e-6)
+            final_aa_prob = F.softmax(infer_out['aa_logits_pred'] / temperature, dim=-1)
+            final_aatype = torch.multinomial(final_aa_prob.view(-1, self._model_conf.embed.num_aatypes), 1)
+            final_aatype = du.move_to_np(final_aatype.view(batch_size, -1))
 
             if self._ss_bond_conf.save_entropy:
                 final_aa_prob = torch.clamp(final_aa_prob, min=1e-10)

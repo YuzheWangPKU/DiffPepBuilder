@@ -24,12 +24,16 @@ experiment:
   use_ddp : True
   use_gpu: True
   num_gpus: 8
-  ckpt_dir: null
+
+  warm_start: ${experiment.eval_only}
+  warm_start_ckpt_path: ${experiment.eval_ckpt_path}
+  reset_training: False
+  use_warm_start_conf: False
 
   # Evaluation.
   eval_only: True
   eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepbuilder_v1.pth
-  eval_dir: ${oc.env:BASE_PATH}/runs/eval_outputs
+  eval_dir: ${oc.env:BASE_PATH}/tests/eval_outputs
   noise_scale: 1.0
   seq_temperature: 0.1
 
