@@ -21,7 +21,6 @@ import pandas as pd
 from Bio import PDB
 from Bio.PDB import Select
 import numpy as np
-import mdtraj as md
 import json
 import warnings
 from tqdm import tqdm
@@ -52,10 +51,10 @@ def create_parser():
     )
 
     parser.add_argument(
-        "--peptide_info_path",
+        "--receptor_info_path",
         type=str,
         default=None,
-        help="Path to the JSON file containing peptide info."
+        help="Path to the JSON file containing receptor info."
     )
 
     parser.add_argument(
@@ -75,7 +74,7 @@ def create_parser():
     return parser
 
 
-def read_peptide_info(json_path, receptor_name):
+def read_receptor_info(json_path, receptor_name):
     with open(json_path, 'r') as file:
         data = json.load(file)
     
@@ -136,13 +135,11 @@ def renumber_rec_chain(pdb_path, json_path, in_place=False):
                     items = receptor_data[key].split('-')
                     updated_items = ['-'.join(chain_id_map.get(item[0], item[0]) + item[1:] for item in items)]
                     receptor_data[key] = ''.join(updated_items)
+            if 'lig_chain' in receptor_data:
+                prev_lig_chain = receptor_data['lig_chain']
+                receptor_data['lig_chain'] = chain_id_map.get(prev_lig_chain, prev_lig_chain)
             with open(out_json_path, 'w') as updated_json_file:
                 json.dump(json_data, updated_json_file, indent=4)
-
-        return True
-    
-    else:
-        return False
 
 
 def resid_unique(res):
@@ -261,8 +258,9 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
     """
     pdb_name = os.path.basename(file_path).replace('.pdb', '').replace('_receptor', '')
 
-    if args.peptide_info_path is not None:
-        motif_str, hotspots, lig_chain_str = read_peptide_info(args.peptide_info_path, pdb_name)
+    if args.receptor_info_path is not None:
+        renumber_rec_chain(file_path, args.receptor_info_path, in_place=True)
+        motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
     else:
         motif_str, hotspots, lig_chain_str = None, None, None
 
@@ -271,9 +269,6 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
             warnings.warn(f"Find both reference ligand chain and motif / hotspots for {pdb_name}. "
                         f"The reference ligand {lig_chain_str} will be used in priority.")
     else:
-        if args.peptide_info_path is not None:
-            if renumber_rec_chain(file_path, args.peptide_info_path, in_place=True):
-                motif_str, hotspots, lig_chain_str = read_peptide_info(args.peptide_info_path, pdb_name)
         if hotspots:
             hotspots = hotspots.split('-')
             if motif_str:
@@ -299,12 +294,10 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
     for chain in structure.get_chains():
         struct_chains[chain.id.upper()] = chain
         
-    com_center = center_pos
     metadata['num_chains'] = len(struct_chains)
 
     # Extract features
     struct_feats = []
-    all_seqs = set()
     complex_length = 0
     for chain_id, chain in struct_chains.items():
         complex_length += len([i for i in chain.get_residues()]) 
@@ -315,17 +308,12 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
         chain_id = du.chain_str_to_int(chain_id_str)
         chain_prot = parsers.process_chain(chain, chain_id)
         chain_dict = dataclasses.asdict(chain_prot)
-        chain_dict = du.parse_chain_feats(chain_dict, center_pos=com_center)
-        all_seqs.add(tuple(chain_dict['aatype']))
+        chain_dict = du.parse_chain_feats(chain_dict, center_pos=center_pos)
         struct_feats.append(chain_dict)
         chain_mask = np.zeros(complex_length)
         chain_mask[res_count: res_count + len(chain_dict['aatype'])] = 1
         chain_masks[chain_id_str] = chain_mask
         res_count += len(chain_dict['aatype']) 
-    if len(all_seqs) == 1:
-        metadata['quaternary_category'] = 'homomer'
-    else:
-        metadata['quaternary_category'] = 'heteromer'
     complex_feats = du.concat_np_features(struct_feats, False)
     complex_feats['center_pos'] = center_pos
     
@@ -338,26 +326,6 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
     metadata['modeled_seq_len'] = len(modeled_idx)
     complex_feats['modeled_idx'] = modeled_idx
     complex_feats['ligand_mask'] = np.zeros(complex_length)
-    
-    try:
-        # MDtraj
-        traj = md.load(file_path)
-        # SS calculation
-        pdb_ss = md.compute_dssp(traj, simplified=True)
-        # DG calculation
-        pdb_dg = md.compute_rg(traj)
-        # os.remove(file_path)
-    except Exception as e:
-        # os.remove(file_path)
-        raise errors.DataError(f'Mdtraj failed with error {e}')
-
-    chain_dict['ss'] = pdb_ss[0]
-    metadata['coil_percent'] = np.sum(pdb_ss == 'C') / metadata['modeled_seq_len']
-    metadata['helix_percent'] = np.sum(pdb_ss == 'H') / metadata['modeled_seq_len']
-    metadata['strand_percent'] = np.sum(pdb_ss == 'E') / metadata['modeled_seq_len']
-
-    # Radius of gyration
-    metadata['radius_gyration'] = pdb_dg[0]
     
     # Write features to pickles.
     du.write_pkl(processed_path, complex_feats)

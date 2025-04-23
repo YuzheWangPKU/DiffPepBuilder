@@ -19,7 +19,6 @@ import argparse
 import dataclasses
 import pandas as pd
 import numpy as np
-import mdtraj as md
 import time
 import multiprocessing as mp
 import functools as fn
@@ -145,7 +144,12 @@ class PretrainedSequenceEmbedder(nn.Module):
             print(f"Model file {regression_path} not found. Downloading...")
             wget.download(f"https://dl.fbaipublicfiles.com/fair-esm/regression/{model_name}-contact-regression.pt", out=regression_path)
         
-        model, alphabet = esm.pretrained.load_model_and_alphabet(model_path)
+        try:
+            model, alphabet = esm.pretrained.load_model_and_alphabet(model_path)
+        except Exception:
+            with torch.serialization.safe_globals([argparse.Namespace]):
+                model, alphabet = esm.pretrained.load_model_and_alphabet(model_path)
+        
         model.to(self.device)
 
         return model, alphabet
@@ -322,7 +326,6 @@ def process_file(file_path:str, write_dir:str, lig_chain_str:str='A', hotspot_cu
         if chain.id != lig_chain_str:
             struct_chains[chain.id.upper()] = chain
         
-    com_center = center_pos
     metadata['num_chains'] = len(struct_chains)
 
     # Extract features
@@ -338,17 +341,13 @@ def process_file(file_path:str, write_dir:str, lig_chain_str:str='A', hotspot_cu
         chain_id = du.chain_str_to_int(chain_id_str)
         chain_prot = parsers.process_chain(chain, chain_id)
         chain_dict = dataclasses.asdict(chain_prot)
-        chain_dict = du.parse_chain_feats(chain_dict, center_pos=com_center)
+        chain_dict = du.parse_chain_feats(chain_dict, center_pos=center_pos)
         all_seqs.add(tuple(chain_dict['aatype']))
         struct_feats.append(chain_dict)
         chain_mask = np.zeros(complex_length)
         chain_mask[res_count: res_count + len(chain_dict['aatype'])] = 1
         chain_masks[chain_id_str] = chain_mask
         res_count += len(chain_dict['aatype']) 
-    if len(all_seqs) == 1:
-        metadata['quaternary_category'] = 'homomer'
-    else:
-        metadata['quaternary_category'] = 'heteromer'
     complex_feats = du.concat_np_features(struct_feats, False)
     complex_feats['center_pos'] = center_pos
     
@@ -369,27 +368,7 @@ def process_file(file_path:str, write_dir:str, lig_chain_str:str='A', hotspot_cu
     else:
         # complex_feats['ligand_mask'] = np.zeros(complex_length)
         raise errors.DataError("No ligand chain specified")
-    
-    try:
-        # MDtraj
-        traj = md.load(file_path)
-        # SS calculation
-        pdb_ss = md.compute_dssp(traj, simplified=True)
-        # DG calculation
-        pdb_dg = md.compute_rg(traj)
-        # os.remove(file_path)
-    except Exception as e:
-        # os.remove(file_path)
-        raise errors.DataError(f'Mdtraj failed with error {e}')
 
-    chain_dict['ss'] = pdb_ss[0]
-    metadata['coil_percent'] = np.sum(pdb_ss == 'C') / metadata['modeled_seq_len']
-    metadata['helix_percent'] = np.sum(pdb_ss == 'H') / metadata['modeled_seq_len']
-    metadata['strand_percent'] = np.sum(pdb_ss == 'E') / metadata['modeled_seq_len']
-
-    # Radius of gyration
-    metadata['radius_gyration'] = pdb_dg[0]
-    
     # Write features to pickles.
     du.write_pkl(processed_path, complex_feats)
 

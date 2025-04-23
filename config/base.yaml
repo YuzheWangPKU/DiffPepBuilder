@@ -8,15 +8,12 @@ data:
   train_csv_path: ${oc.env:BASE_PATH}/data/complex_dataset/metadata_train.csv
   val_csv_path: ${oc.env:BASE_PATH}/data/complex_dataset/metadata_val.csv
   cluster_path: null
+  mask_lig_seq: True
   filtering:
     max_len: 512
     min_len: 8
     subset: null
     allowed_oligomer: null
-    max_helix_percent: null
-    max_loop_percent: null
-    min_beta_percent: null
-    rog_quantile: null
   min_t: 0.01
   num_t: 100
   # Number of validation examples. Set to null to use the complete validation set.
@@ -44,7 +41,7 @@ diffuser:
     min_sigma: 0.1
     max_sigma: 1.5
     schedule: logarithmic
-    cache_dir: ${oc.env:BASE_PATH}/tests/cache/
+    cache_dir: ${oc.env:BASE_PATH}/runs/cache/
     use_cached_score: False
 
 model:
@@ -113,7 +110,7 @@ experiment:
   use_warm_start_conf: False
   freeze_backbone: False
 
-  ckpt_dir: ${oc.env:BASE_PATH}/tests/ckpt
+  ckpt_dir: ${oc.env:BASE_PATH}/runs/ckpt
 
   # Loss weights.
   aa_type_loss_weight: 2.0
@@ -142,14 +139,14 @@ experiment:
   # Evaluation. Set eval_only True to skip training.
   eval_only: False
   eval_ckpt_path: null
-  eval_dir: ${oc.env:BASE_PATH}/tests/eval_outputs
+  eval_dir: ${oc.env:BASE_PATH}/runs/eval_outputs
   noise_scale: 1.0
   seq_temperature: 0.0
   flip_align: True
 
 hydra:
   run:
-    dir: ${oc.env:BASE_PATH}/tests/hydra_run_${now:%H:%M}
+    dir: ${oc.env:BASE_PATH}/runs/hydra_run_${now:%H:%M}
   sweep:
-    dir: ${oc.env:BASE_PATH}/tests/hydra_sweep_${now:%H:%M}
+    dir: ${oc.env:BASE_PATH}/runs/hydra_sweep_${now:%H:%M}
     subdir: ${hydra.job.override_dirname}

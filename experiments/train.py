@@ -1,23 +1,7 @@
 """
-Pytorch script for model training and evaluation.
-
-To run:
-
-> python experiments/train.py
-
-Without Wandb,
-
-> python experiments/train.py experiment.use_wandb=False
-
-To modify config options with the command line,
-
-> python experiments/train.py experiment.batch_size=32
-
-To run evaluation only with the particular model checkpoint:
-
-> python experiments/train.py --config_name=eval_only
-
+Pytorch script for model training and validation.
 """
+
 import pyrootutils
 
 # See: https://github.com/ashleve/pyrootutils
@@ -160,6 +144,7 @@ class Experiment:
                         state[k] = v.to(device)
 
         dt_string = datetime.now().strftime("%dD_%mM_%YY_%Hh_%Mm")
+
         if not self._exp_conf.eval_only:
             if self._exp_conf.ckpt_dir is not None:
                 # Set-up checkpoint location
@@ -175,6 +160,7 @@ class Experiment:
                 self._log.info('Checkpoint not being saved.')
         else:
             self._log.info('Evaluation mode only, no checkpoint being saved.')
+
         if self._exp_conf.eval_dir is not None :
             eval_dir = os.path.join(
                 self._exp_conf.eval_dir,
@@ -291,7 +277,7 @@ class Experiment:
             replica_id = 0
         if self._use_wandb and replica_id == 0:
             self.init_wandb()
-        assert(not self._exp_conf.use_ddp or self._exp_conf.use_gpu)
+        assert (not self._exp_conf.use_ddp or self._exp_conf.use_gpu)
 
         # GPU mode
         if torch.cuda.is_available() and self._exp_conf.use_gpu:
@@ -353,7 +339,7 @@ class Experiment:
             self._model.train()
 
             return
-
+        
         self._model.train()
         train_loader, train_sampler = self.create_train_dataset()
         valid_loader, valid_sampler = self.create_valid_dataset()
@@ -465,7 +451,6 @@ class Experiment:
                 all_metrics = self.aggregate_metrics(eval_dir)
                 self._log.info(
                     f"[Eval-{self.trained_steps}]: peptide_rmsd={all_metrics['peptide_rmsd'].mean()}, "
-                    f"peptide_aligned_rmsd={all_metrics['peptide_aligned_rmsd'].mean()}, "
                     f"sequence_recovery={all_metrics['sequence_recovery'].mean()}, "
                     f"sequence_similarity={all_metrics['sequence_similarity'].mean()}"
                 )
@@ -587,10 +572,13 @@ class Experiment:
             final_chi = du.move_to_np(infer_out['chi_pred'])
 
             # Extract argmax predicted aatype
-            temperature = max(self._exp_conf.seq_temperature, 1e-6)
-            final_aa_prob = F.softmax(infer_out['aa_logits_pred'] / temperature, dim=-1)  # [batch_size, N_res, 20]
-            final_aatype = torch.multinomial(final_aa_prob.view(-1, self._model_conf.embed.num_aatypes), 1)  # [batch_size * N_res, 1]
-            final_aatype = du.move_to_np(final_aatype.view(batch_size, -1))  # [batch_size, N_res]
+            if self._data_conf.mask_lig_seq:
+                temperature = max(self._exp_conf.seq_temperature, 1e-6)
+                final_aa_prob = F.softmax(infer_out['aa_logits_pred'] / temperature, dim=-1)  # [batch_size, N_res, 20]
+                final_aatype = torch.multinomial(final_aa_prob.view(-1, self._model_conf.embed.num_aatypes), 1)  # [batch_size * N_res, 1]
+                final_aatype = du.move_to_np(final_aatype.view(batch_size, -1))  # [batch_size, N_res]
+            else:
+                final_aatype = gt_aatype
 
             for i in range(batch_size):
                 pdb_name = pdb_names[i]
@@ -702,7 +690,7 @@ class Experiment:
             dim=-1
         ) / (loss_mask.sum(dim=-1) + 1e-10)
 
-        aa_type_loss *= self._exp_conf.aa_type_loss_weight
+        aa_type_loss *= self._exp_conf.get('aa_type_loss_weight', 0)
         aa_type_loss *= batch['t'] < self._exp_conf.aa_type_loss_t_filter
 
         # Translation score loss

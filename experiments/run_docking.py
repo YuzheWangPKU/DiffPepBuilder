@@ -1,11 +1,7 @@
 """
-Script to run de novo peptide generation.
-
-Sample command:
-
-> python experiments/inference.py
-
+Pytorch script for running docking protocols.
 """
+
 import pyrootutils
 
 # See: https://github.com/ashleve/pyrootutils
@@ -25,45 +21,37 @@ import hydra
 import torch
 
 from torch.nn import DataParallel as DP
-import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
-from openfold.utils import rigid_utils
 from hydra.core.hydra_config import HydraConfig
+from omegaconf import DictConfig
+from openfold.utils import rigid_utils
 
 from analysis import utils as au
 from data import utils as du
-from data import pdb_data_loader
+from data import pdb_data_loader, residue_constants
 from data.pdb_data_loader import PdbDataset
 from experiments.train import Experiment
-from experiments.utils import save_traj
-from omegaconf import DictConfig, OmegaConf
-from SSbuilder.SSbuilder import Structure, read_ssdata, cys_terminal, build_ssbond, merge_s
 
 
-class PepGenDataset(PdbDataset):
+class BatchDockDataset(PdbDataset):
     def __init__(
             self,
             *,
             data_conf,
-            sample_conf,
             diffuser
     ):
         super().__init__(data_conf=data_conf, diffuser=diffuser, is_training=False)
-        self.sample_conf = sample_conf
-
         gen_csv = pd.DataFrame(np.repeat(self.csv.values, self._data_conf.num_repeat_per_eval_sample, axis=0))
         gen_csv.columns = self.csv.columns
         self.csv = gen_csv.copy()
 
 
-    def sample_init_peptide(self, sample_length: int):
+    def sample_init_peptide(self, peptide_seq: str):
         """
-        Sample initial peptide conformation based on length.
-
-        Args:
-            sample_length: length of the peptide to sample
+        Sample initial peptide conformation based on peptide sequence.
         """
+        sample_length = len(peptide_seq)
         res_mask = np.ones(sample_length)
         fixed_mask = np.zeros_like(res_mask)
 
@@ -71,7 +59,7 @@ class PepGenDataset(PdbDataset):
             n_samples=sample_length,
             as_tensor_7=True,
         )
-        aatype = np.full(sample_length, 20)
+        aatype = np.array([residue_constants.restype_order.get(res, residue_constants.restype_num) for res in peptide_seq])
         init_feats = {
             'aatype': aatype,
             'res_mask': res_mask,
@@ -109,18 +97,6 @@ class PepGenDataset(PdbDataset):
         return receptor_feats
     
 
-    def idx_to_peptide_len(self, idx):
-        """
-        Convert the index to the sampled peptide length.
-        """
-        min_length = self.sample_conf.min_length
-        num_repeat = self.data_conf.num_repeat_per_eval_sample
-
-        length = min_length + (idx % num_repeat)
-
-        return length
-
-
     def __len__(self):
         return len(self.csv)
 
@@ -133,13 +109,18 @@ class PepGenDataset(PdbDataset):
         else:
             raise ValueError('Need receptor identifier.')
         
+        if 'peptide_id' in csv_row:
+            peptide_id = csv_row['peptide_id']
+        else:
+            raise ValueError('Need peptide ligand identifier.')
+        
+        
         processed_file_path = csv_row['processed_path']
-
         raw_feats = self._process_csv_row(processed_file_path)
 
-        peptide_len = self.idx_to_peptide_len(idx)
-
-        peptide_feats = self.sample_init_peptide(peptide_len)
+        peptide_seq = csv_row['peptide_seq']
+        peptide_len = len(peptide_seq)
+        peptide_feats = self.sample_init_peptide(peptide_seq)
         receptor_feats = self.process_receptor(raw_feats)
 
         final_feats = tree.map_structure(
@@ -171,17 +152,15 @@ class PepGenDataset(PdbDataset):
 
         final_feats['chain_idx'] = torch.tensor(chain_idx)
         final_feats['seq_idx'] = torch.tensor(seq_idx)
-        
-        # Use average ESM embeddings for peptide binder residues
-        receptor_esm_embed = raw_feats['esm_embed']
-        mean_esm_embed = np.mean(receptor_esm_embed[raw_feats['res_mask'].astype(bool)], axis=0)
-        peptide_esm_embed = np.tile(mean_esm_embed, (peptide_len, 1))
-        esm_embed = np.concatenate([peptide_esm_embed, receptor_esm_embed])
+
+        # ESM embeddings
+        esm_embed = raw_feats['esm_embed']
+        assert esm_embed.shape[0] == seq_idx.shape[0], f"ESM embedding length {esm_embed.shape[0]} does not match sequence length {seq_idx.shape[0]}"
         final_feats['esm_embed'] = torch.tensor(esm_embed)
 
         final_feats = du.pad_feats(final_feats, csv_row['modeled_seq_len'] + peptide_len)
 
-        return final_feats, pdb_name
+        return final_feats, pdb_name, peptide_id
 
 
 class Sampler(Experiment):
@@ -192,55 +171,6 @@ class Sampler(Experiment):
         ):
         super().__init__(conf=conf)
 
-        # Remove static type checking.
-        OmegaConf.set_struct(conf, False)
-
-        # Additional configs.
-        self._infer_conf = conf.inference
-        self._denoise_conf = self._infer_conf.denoising
-        self._sample_conf = self._infer_conf.sampling
-        self._ss_bond_conf = self._infer_conf.ss_bond
-
-        # Set seed.
-        seed = self._infer_conf.seed + self.ddp_info['local_rank'] if self._use_ddp else self._infer_conf.seed
-        self._rng = np.random.default_rng(seed)
-
-        # Reset number of repeats per receptor.
-        num_repeat = self._sample_conf.max_length - self._sample_conf.min_length + 1
-        self._conf.data.num_repeat_per_eval_sample = num_repeat
-        self._data_conf.num_repeat_per_eval_sample = num_repeat
-    
-
-    def build_ss_bond(self, entropy_dict: dict) -> list:
-        """
-        Build disulfide bonds for generated peptide.
-        """
-        ligand_chain = ['A']
-        receptor_chains = 'BCDEFGHIJKLMNOPQRSTUVWXYZ'
-        pdb_ss_list = []
-
-        if entropy_dict != {}:
-            ss_frag_lib = read_ssdata(self._ss_bond_conf.frag_lib_path)
-            for pdb_path in entropy_dict:
-                pdb_ss_path = pdb_path.replace('.pdb', '_ss.pdb')
-                peptide = Structure(pdb_path, chains = ligand_chain)
-                receptor = Structure(pdb_path, chains = receptor_chains)
-                if cys_terminal(peptide, entropy_dict[pdb_path], self._ss_bond_conf.entropy_threshold):
-                    self._log.info(f"Try building SS bonds for {pdb_path}...")
-                    new_peptide = None
-                    try:
-                        new_peptide = build_ssbond(peptide, ss_frag_lib, self._ss_bond_conf.max_ss_bond, 'A')
-                    except Exception as e:
-                        print(f"{pdb_path}")
-                    if new_peptide is not None:
-                        merge_s(receptor, new_peptide, pdb_ss_path)
-                        pdb_ss_list.append(pdb_ss_path)
-                        self._log.info(f"Successfully built SS bonds for {pdb_path}")
-                    else:
-                        self._log.info(f"Failed to build SS bond for {pdb_path}")
-
-        return pdb_ss_list
-    
 
     def run_sampling(self):
         """
@@ -252,7 +182,7 @@ class Sampler(Experiment):
             replica_id = 0
         if self._use_wandb and replica_id == 0:
                 self.init_wandb()
-        assert(not self._exp_conf.use_ddp or self._exp_conf.use_gpu)
+        assert (not self._exp_conf.use_ddp or self._exp_conf.use_gpu)
 
         # GPU mode
         if torch.cuda.is_available() and self._exp_conf.use_gpu:
@@ -290,10 +220,9 @@ class Sampler(Experiment):
         assert self._exp_conf.eval_ckpt_path is not None, "Need to specify inference checkpoint path."
         self._model.eval()
 
-        test_dataset = PepGenDataset(
+        test_dataset = BatchDockDataset(
             data_conf=self._data_conf,
-            sample_conf=self._sample_conf,
-            diffuser=self._diffuser,
+            diffuser=self._diffuser
         )
         if not self._use_ddp:
             test_sampler = pdb_data_loader.TrainSampler(
@@ -323,9 +252,8 @@ class Sampler(Experiment):
 
         start_time = time.time()
         test_dir = self._exp_conf.eval_dir
-        entropy_dict = {}
 
-        for test_feats, pdb_names in test_loader:
+        for test_feats, pdb_names, peptide_ids in test_loader:
             res_mask = du.move_to_np(test_feats['res_mask'].bool())
             fixed_mask = du.move_to_np(test_feats['fixed_mask'].bool())
             gt_aatype = du.move_to_np(test_feats['aatype'])
@@ -333,7 +261,6 @@ class Sampler(Experiment):
             chain_idx = du.move_to_np(test_feats['chain_idx'])
             coordinate_bias = du.move_to_np(test_feats['coordinate_bias'])
             batch_size = res_mask.shape[0]
-            peptide_len = np.sum(1 - fixed_mask[0])
             test_feats = tree.map_structure(
                 lambda x: x.to(device), test_feats)
             
@@ -346,85 +273,53 @@ class Sampler(Experiment):
             )
 
             final_prot = infer_out['prot_traj'][0]  # [N_res, 37, 3]
-            temperature = max(self._sample_conf.seq_temperature, 1e-6)
-            final_aa_prob = F.softmax(infer_out['aa_logits_pred'] / temperature, dim=-1)
-            final_aatype = torch.multinomial(final_aa_prob.view(-1, self._model_conf.embed.num_aatypes), 1)
-            final_aatype = du.move_to_np(final_aatype.view(batch_size, -1))
-
-            if self._ss_bond_conf.save_entropy:
-                final_aa_prob = torch.clamp(final_aa_prob, min=1e-10)
-                final_aa_entropy = -torch.sum(final_aa_prob * torch.log(final_aa_prob), dim=-1)  # [batch_size, N_res]
-                final_aa_entropy = du.move_to_np(final_aa_entropy)
 
             for i in range(batch_size):
                 pdb_name = pdb_names[i]
+                peptide_id = peptide_ids[i]
                 unpad_seq_idx = seq_idx[i][res_mask[i]]
                 unpad_chain_idx = chain_idx[i][res_mask[i]]
                 unpad_fixed_mask = fixed_mask[i][res_mask[i]]
                 unpad_prot = final_prot[i][res_mask[i]]
-                unpad_aatype = final_aatype[i][res_mask[i]]
                 unpad_gt_aatype = gt_aatype[i][res_mask[i]]
                 unpad_coordinate_bias = coordinate_bias[i][res_mask[i]]  # [N_res, 3]
-                if self._ss_bond_conf.save_entropy:
-                    unpad_aa_entropy = final_aa_entropy[i][res_mask[i]]
 
-                length_dir = os.path.join(
+                peptide_seq_dir = os.path.join(
                     test_dir,
                     f'{pdb_name}',
-                    f'length_{peptide_len}'
+                    f'{peptide_id}'
                 )
-                os.makedirs(length_dir, exist_ok=True)
+                os.makedirs(peptide_seq_dir, exist_ok=True)
                 sample_id = i + self.ddp_info['local_rank'] * batch_size if self._use_ddp else i
                 pdb_sampled = os.path.join(
-                    length_dir, 
-                    f'{pdb_name}_sample_{sample_id}.pdb'
+                    peptide_seq_dir, 
+                    f'{pdb_name}_{peptide_id}_sample_{sample_id}.pdb'
                 )
-                entropy_dict[pdb_sampled] = unpad_aa_entropy[~unpad_fixed_mask]
-                b_factors = np.tile(unpad_aa_entropy[..., None], (1, 37)) * 30 if self._ss_bond_conf.save_entropy \
-                    else np.tile(1 - unpad_fixed_mask[..., None], 37) * 100
+                b_factors = np.tile(1 - unpad_fixed_mask[..., None], 37) * 100
 
                 saved_path = au.write_prot_to_pdb(
                     unpad_prot,
                     pdb_sampled,
                     coordinate_bias=unpad_coordinate_bias,
-                    aatype=np.where(unpad_fixed_mask == 0, unpad_aatype, unpad_gt_aatype),
+                    aatype=unpad_gt_aatype,
                     residue_index=unpad_seq_idx,
                     chain_index=unpad_chain_idx,
                     no_indexing=True,
                     b_factors=b_factors
                 )
-                self._log.info(f'Done sample {pdb_name} (peptide length: {peptide_len}, sample: {sample_id}), saved to {saved_path}')
-
-                if self._infer_conf.save_traj:
-                    traj_path = save_traj(
-                        bb_prot_traj=infer_out['prot_traj'][:, i, ...],  # [T, batch_size, N_res, 37, 3] -> [T, N_res, 37, 3]
-                        coordinate_bias=unpad_coordinate_bias,  # [N_res, 3]
-                        aatype=unpad_aatype,
-                        diffuse_mask=1-unpad_fixed_mask,
-                        prot_traj_path=os.path.join(length_dir, f'{pdb_name}_sample_{sample_id}_traj.pdb')
-                    )
-                    self._log.info(f'Saved denoising trajectory to {traj_path}')
+                self._log.info(f'Done sample {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id}), saved to {saved_path}')
         
         if self._use_ddp:
             dist.barrier()
 
         eval_time = time.time() - start_time
-        pdb_list = list(entropy_dict.keys())
-        self._log.info(f'Finished all de novo peptide generation tasks in {eval_time:.2f}s. Start post-processing...')
-
-        # Build SS bond
-        if self._ss_bond_conf.build_ss_bond:
-            pdb_ss_list = self.build_ss_bond(entropy_dict)
-            pdb_list += pdb_ss_list
-            if self._use_ddp:
-                dist.barrier()
-            self._log.info(f'Finished building possible SS bonds for generated peptides.')
+        self._log.info(f'Finished all peptide docking tasks in {eval_time:.2f}s.')
 
 
-@hydra.main(version_base=None, config_path=f"{root}/config", config_name="inference")
+@hydra.main(version_base=None, config_path=f"{root}/config", config_name="docking")
 def main(conf: DictConfig) -> None:
-    sampler = Sampler(conf=conf)
-    sampler.run_sampling()
+    exp = Sampler(conf=conf)
+    exp.run_sampling()
 
 
 if __name__ == '__main__':

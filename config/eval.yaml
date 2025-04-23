@@ -5,9 +5,10 @@ defaults:
 
 data:
   train_csv_path: null
-  val_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_val.csv
+  val_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_test.csv
+  mask_lig_seq: True
   min_t: 0.01
-  num_t: 200
+  num_t: 500
   num_eval_samples: null
   num_repeat_per_eval_sample: 16
 
@@ -16,23 +17,20 @@ data:
   center_pos_noise_std: 2.0
 
 experiment:
-  # Experiment metadata
   name: eval_gen
-
-  # Training arguments
+  
   eval_batch_size: ${data.num_repeat_per_eval_sample}
   num_loader_workers: 4
+  use_ddp : True
   use_gpu: True
   num_gpus: 8
-  sample_mode: time_batch
 
-  # Checkpoint directory to warm start from.
   warm_start: ${experiment.eval_only}
   warm_start_ckpt_path: ${experiment.eval_ckpt_path}
   reset_training: False
   use_warm_start_conf: False
 
-  # Evaluation. Set eval_only True to skip training.
+  # Evaluation.
   eval_only: True
   eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepbuilder_v1.pth
   eval_dir: ${oc.env:BASE_PATH}/tests/eval_outputs

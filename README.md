@@ -42,7 +42,7 @@ tar -xvf SSBLIB.tar.gz
 
 The post-processing procedure requires [Rosetta](https://rosettacommons.org/software/) to be installed. Please download the latest version of Rosetta from the [official website](https://rosettacommons.org/download/) and follow the [installation instructions](https://docs.rosettacommons.org/docs/latest/getting_started/Getting-Started).
 
-## Inference
+## *De Novo* Design
 To *de novo* generate peptide binders for a given target protein, please first download the model weights into `experiments/checkpoints/` from [Zenodo](https://zenodo.org/records/12794439). You can use the following command to download the model weights:
 
 ```bash
@@ -53,7 +53,7 @@ mv diffpepbuilder_v1.pth experiments/checkpoints/
 We provide an example of the target ALK1 (Activin Receptor-like Kinase 1, PDB ID: [6SF1](https://www.rcsb.org/structure/6SF1)) to demonstrate the procedures of generating peptide binders. Please note that the following pipeline can also be used to generate peptide binders for multiple targets simultaneously. The hotspots or binding motif of the target protein can be specified in JSON format, as showcased by the example file `examples/receptor_data/de_novo_cases.json`. To preprocess the receptor, run the `experiments/process_receptor.py` script:
 
 ```bash
-python experiments/process_receptor.py --pdb_dir examples/receptor_data --write_dir data/receptor_data --peptide_info_path examples/receptor_data/de_novo_cases.json
+python experiments/process_receptor.py --pdb_dir examples/receptor_data --write_dir data/receptor_data --receptor_info_path examples/receptor_data/de_novo_cases.json
 ```
 
 This script will generate the receptor data in the `data/receptor_data` directory. To generate peptide binders for the target protein, please specify the root directory of DiffPepBuilder repository and then run the `experiments/run_inference.py` script (modify the `nproc-per-node` flag accordingly based on the number of GPUs available):
@@ -81,14 +81,14 @@ The config file `config/inference.yaml` contains the hyperparameters for the inf
 
 You can modify these hyperparameters to customize the inference process. For more details on the hyperparameters, please refer to our [paper](https://arxiv.org/abs/2405.00128). 
 
-After running the inference script, the generated peptide binders will be saved in the `tests/inference/`. To run the side chain assembly and energy minimization using [Rosetta](https://rosettacommons.org/software/), please run the following script subsequently:
+After running the inference script, the generated peptide binders will be saved in the `runs/inference/`. To run the side chain assembly and energy minimization using [Rosetta](https://rosettacommons.org/software/), please run the following script subsequently:
 
 ```bash
 export BASE_PATH="your/path/to/DiffPepBuilder"
-python experiments/run_redock.py --in_path tests/inference --ori_path examples/receptor_data --interface_analyzer_path your/path/to/rosetta/main/source/bin/rosetta_scripts.static.linuxgccrelease
+python experiments/run_redock.py --in_path runs/inference --ori_path examples/receptor_data --interface_analyzer_path your/path/to/rosetta/main/source/bin/rosetta_scripts.static.linuxgccrelease
 ```
 
-Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final peptide binders in the `tests/inference/.../pdbs_redock/` directory and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `tests/inference/redock_results.csv` file.
+Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final peptide binders in the `runs/inference/.../pdbs_redock/` directory and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `runs/inference/redock_results.csv` file.
 
 ## Training
 To train the DiffPepBuilder model from scratch, please download the training data from [Zenodo](https://zenodo.org/records/13744959) and unzip the data in the `data/` directory:
@@ -118,7 +118,7 @@ export BASE_PATH="your/path/to/DiffPepBuilder"
 torchrun --nproc-per-node=8 experiments/train.py
 ```
 
-The config file `config/base.yaml` contains the hyperparameters for the training process. You can modify these hyperparameters to customize the training process. Checkpoints will be saved every 10,000 steps after validation in the `tests/ckpt/` directory by default. Training logs will be saved every 2,500 steps.
+The config file `config/base.yaml` contains the hyperparameters for the training process. You can modify these hyperparameters to customize the training process. Checkpoints will be saved every 10,000 steps after validation in the `runs/ckpt/` directory by default. Training logs will be saved every 2,500 steps.
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
