@@ -22,11 +22,10 @@ experiment:
   num_loader_workers: 4
   use_ddp : True
   use_gpu: True
-  num_gpus: 2
+  num_gpus: 8
 
   # Evaluation.
   eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepdock_v1.pth
   eval_dir: ${oc.env:BASE_PATH}/runs/${now:%b%d}/eval_outputs
   noise_scale: 1.0
   flip_align: False
-
