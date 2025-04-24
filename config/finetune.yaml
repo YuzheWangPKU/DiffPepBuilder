@@ -2,6 +2,7 @@
 
 defaults:
   - base
+  - _self_
 
 data:
   train_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_train.csv

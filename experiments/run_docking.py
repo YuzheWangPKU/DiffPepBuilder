@@ -16,7 +16,6 @@ import os
 import time
 import tree
 import numpy as np
-import pandas as pd
 import hydra
 import torch
 
@@ -42,9 +41,6 @@ class BatchDockDataset(PdbDataset):
             diffuser
     ):
         super().__init__(data_conf=data_conf, diffuser=diffuser, is_training=False)
-        gen_csv = pd.DataFrame(np.repeat(self.csv.values, self._data_conf.num_repeat_per_eval_sample, axis=0))
-        gen_csv.columns = self.csv.columns
-        self.csv = gen_csv.copy()
 
 
     def sample_init_peptide(self, peptide_seq: str):
@@ -154,8 +150,9 @@ class BatchDockDataset(PdbDataset):
         final_feats['seq_idx'] = torch.tensor(seq_idx)
 
         # ESM embeddings
-        esm_embed = raw_feats['esm_embed']
-        assert esm_embed.shape[0] == seq_idx.shape[0], f"ESM embedding length {esm_embed.shape[0]} does not match sequence length {seq_idx.shape[0]}"
+        esm_embed = du.read_pkl(processed_file_path)['esm_embed']
+        assert esm_embed.shape[0] == seq_idx.shape[0], \
+            f"ESM embedding length {esm_embed.shape[0]} does not match sequence length {seq_idx.shape[0]}"
         final_feats['esm_embed'] = torch.tensor(esm_embed)
 
         final_feats = du.pad_feats(final_feats, csv_row['modeled_seq_len'] + peptide_len)
@@ -266,10 +263,10 @@ class Sampler(Experiment):
             
             infer_out = self.inference_fn(
                 data_init=test_feats,
-                num_t=self._denoise_conf.num_t,
-                min_t=self._denoise_conf.min_t,
+                num_t=self._data_conf.num_t,
+                min_t=self._data_conf.min_t,
                 aux_traj=True,
-                noise_scale=self._denoise_conf.noise_scale
+                noise_scale=self._exp_conf.noise_scale
             )
 
             final_prot = infer_out['prot_traj'][0]  # [N_res, 37, 3]

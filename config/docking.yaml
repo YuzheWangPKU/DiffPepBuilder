@@ -2,6 +2,7 @@
 
 defaults:
   - eval
+  - _self_
 
 data:
   val_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_test.csv
@@ -21,7 +22,7 @@ experiment:
   num_loader_workers: 4
   use_ddp : True
   use_gpu: True
-  num_gpus: 8
+  num_gpus: 2
 
   # Evaluation.
   eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepdock_v1.pth

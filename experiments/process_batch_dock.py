@@ -190,7 +190,7 @@ def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cuto
     return all_metadata, all_raw_seq_data
 
 
-def process_serially(all_paths, write_dir, pocket_cutoff = 10):
+def process_serially(all_paths, write_dir, peptide_dict, pocket_cutoff = 10):
     final_metadata = []
     final_raw_data = {}
 
@@ -200,6 +200,7 @@ def process_serially(all_paths, write_dir, pocket_cutoff = 10):
             all_metadata, all_raw_seq_data = process_file(
                 file_path,
                 write_dir,
+                peptide_dict,
                 pocket_cutoff=pocket_cutoff
             )
             elapsed_time = time.time() - start_time
@@ -234,25 +235,29 @@ def main(args):
     metadata_path = os.path.join(write_dir, metadata_file_name)
     print(f'Files will be written to {write_dir}')
 
+    peptide_dict = read_peptide_seq(args.peptide_seq_path)
     all_metadata, all_raw_data = process_serially(
         all_file_paths,
         write_dir,
+        peptide_dict,
         pocket_cutoff=args.pocket_cutoff
     )
 
     metadata_df = pd.DataFrame(all_metadata)
     metadata_df.to_csv(metadata_path, index=False)
     succeeded = len(all_metadata)
-    print(f'Finished processing {succeeded}/{total_num_paths} files. Start ESM embedding...')
+    print(f'Finished processing {succeeded}/{total_num_paths * len(peptide_dict)} files. Start ESM embedding...')
 
     # Embed sequences with pretrained ESM
     esm_embedder = PretrainedSequenceEmbedder(max_batch_size=args.max_batch_size)
     all_esm_embs = esm_embedder(all_raw_data)
 
-    for pkl_file_path in tqdm(metadata_df['processed_path']):
+    for pkl_file_path, complex_seq_len in tqdm(zip(metadata_df['processed_path'], metadata_df['seq_len'])):
         pkl_data = du.read_pkl(pkl_file_path)
-        pdb_name = os.path.basename(pkl_file_path).replace('.pkl', '')
-        esm_embed = all_esm_embs[pdb_name].detach().cpu().numpy()
+        entry_name = os.path.basename(pkl_file_path).replace('.pkl', '')
+        esm_embed = all_esm_embs[entry_name].detach().cpu().numpy()
+        assert esm_embed.shape[0] == complex_seq_len, \
+            f"ESM embedding length {esm_embed.shape[0]} does not match sequence length {complex_seq_len} for {entry_name}"
         pkl_data['esm_embed'] = esm_embed
         du.write_pkl(pkl_file_path, pkl_data)
 
