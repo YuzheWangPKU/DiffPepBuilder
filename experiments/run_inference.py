@@ -341,7 +341,7 @@ class Sampler(Experiment):
                 data_init=test_feats,
                 num_t=self._denoise_conf.num_t,
                 min_t=self._denoise_conf.min_t,
-                aux_traj=True,
+                aux_traj=False,
                 noise_scale=self._denoise_conf.noise_scale
             )
 
@@ -396,8 +396,10 @@ class Sampler(Experiment):
                 self._log.info(f'Done sample {pdb_name} (peptide length: {peptide_len}, sample: {sample_id}), saved to {saved_path}')
 
                 if self._infer_conf.save_traj:
+                    prot_traj = infer_out['prot_traj'][:, i, ...]  # [T, batch_size, N_res, 37, 3] -> [T, N_res, 37, 3]
+                    unpad_prot_traj = prot_traj[:, res_mask[i], ...]
                     traj_path = save_traj(
-                        bb_prot_traj=infer_out['prot_traj'][:, i, ...],  # [T, batch_size, N_res, 37, 3] -> [T, N_res, 37, 3]
+                        bb_prot_traj=unpad_prot_traj,
                         coordinate_bias=unpad_coordinate_bias,  # [N_res, 3]
                         aatype=unpad_aatype,
                         diffuse_mask=1-unpad_fixed_mask,

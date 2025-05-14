@@ -58,6 +58,8 @@ def write_prot_to_pdb(
         max_existing_idx = 0
     else:
         file_dir = os.path.dirname(file_path)
+        if not os.path.exists(file_dir):
+            os.makedirs(file_dir)
         file_name = os.path.basename(file_path).strip('.pdb')
         existing_files = [x for x in os.listdir(file_dir) if file_name in x]
         max_existing_idx = max([

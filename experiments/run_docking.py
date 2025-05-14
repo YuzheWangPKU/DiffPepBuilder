@@ -16,7 +16,6 @@ import os
 import time
 import tree
 import numpy as np
-import pandas as pd
 import hydra
 import torch
 
@@ -32,6 +31,7 @@ from data import utils as du
 from data import pdb_data_loader, residue_constants
 from data.pdb_data_loader import PdbDataset
 from experiments.train import Experiment
+from experiments.utils import save_traj
 
 
 class BatchDockDataset(PdbDataset):
@@ -42,9 +42,6 @@ class BatchDockDataset(PdbDataset):
             diffuser
     ):
         super().__init__(data_conf=data_conf, diffuser=diffuser, is_training=False)
-        gen_csv = pd.DataFrame(np.repeat(self.csv.values, self._data_conf.num_repeat_per_eval_sample, axis=0))
-        gen_csv.columns = self.csv.columns
-        self.csv = gen_csv.copy()
 
 
     def sample_init_peptide(self, peptide_seq: str):
@@ -114,7 +111,6 @@ class BatchDockDataset(PdbDataset):
         else:
             raise ValueError('Need peptide ligand identifier.')
         
-        
         processed_file_path = csv_row['processed_path']
         raw_feats = self._process_csv_row(processed_file_path)
 
@@ -154,11 +150,12 @@ class BatchDockDataset(PdbDataset):
         final_feats['seq_idx'] = torch.tensor(seq_idx)
 
         # ESM embeddings
-        esm_embed = raw_feats['esm_embed']
-        assert esm_embed.shape[0] == seq_idx.shape[0], f"ESM embedding length {esm_embed.shape[0]} does not match sequence length {seq_idx.shape[0]}"
+        esm_embed = du.read_pkl(processed_file_path)['esm_embed']
+        assert esm_embed.shape[0] == seq_idx.shape[0], \
+            f"ESM embedding length {esm_embed.shape[0]} does not match sequence length {seq_idx.shape[0]}"
         final_feats['esm_embed'] = torch.tensor(esm_embed)
 
-        final_feats = du.pad_feats(final_feats, csv_row['modeled_seq_len'] + peptide_len)
+        final_feats = du.pad_feats(final_feats, csv_row['modeled_seq_len'])
 
         return final_feats, pdb_name, peptide_id
 
@@ -266,10 +263,10 @@ class Sampler(Experiment):
             
             infer_out = self.inference_fn(
                 data_init=test_feats,
-                num_t=self._denoise_conf.num_t,
-                min_t=self._denoise_conf.min_t,
-                aux_traj=True,
-                noise_scale=self._denoise_conf.noise_scale
+                num_t=self._data_conf.num_t,
+                min_t=self._data_conf.min_t,
+                aux_traj=False,
+                noise_scale=self._exp_conf.noise_scale
             )
 
             final_prot = infer_out['prot_traj'][0]  # [N_res, 37, 3]
@@ -309,6 +306,18 @@ class Sampler(Experiment):
                 )
                 self._log.info(f'Done sample {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id}), saved to {saved_path}')
         
+                if self._exp_conf.save_traj:
+                    prot_traj = infer_out['prot_traj'][:, i, ...]  # [T, batch_size, N_res, 37, 3] -> [T, N_res, 37, 3]
+                    unpad_prot_traj = prot_traj[:, res_mask[i], ...]
+                    traj_path = save_traj(
+                        bb_prot_traj=unpad_prot_traj,
+                        coordinate_bias=unpad_coordinate_bias,
+                        aatype=unpad_gt_aatype,
+                        diffuse_mask=1-unpad_fixed_mask,
+                        prot_traj_path=os.path.join(peptide_seq_dir, "traj", f'{pdb_name}_{peptide_id}_sample_{sample_id}_traj.pdb')
+                    )
+                    self._log.info(f'Saved denoising trajectory to {traj_path}')
+
         if self._use_ddp:
             dist.barrier()
 

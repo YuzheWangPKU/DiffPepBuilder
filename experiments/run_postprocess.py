@@ -1,5 +1,5 @@
 """
-Script to run redocking procedures.
+Script for postprocessing procedures.
 """
 import pyrootutils
 
@@ -21,7 +21,7 @@ now = datetime.now()
 
 def create_parser():
     parser = argparse.ArgumentParser(
-        description="Run redocking procedures."
+        description="Run postprocessing procedures."
     )
 
     parser.add_argument(
@@ -90,7 +90,7 @@ def main(args):
     }
     redock_app_path = app_paths[args.redock_app]
     
-    print(f'Start redocking of peptides with {args.redock_app}...')
+    print(f'Start postprocessing of peptides with {args.redock_app}...')
     redock_metric_parallel(
         files=test_files,
         ori_path=args.ori_path,
@@ -102,7 +102,7 @@ def main(args):
         xml=args.redock_xml_path,
         out_path=os.path.join(args.in_path, 'redock_results.csv')
     )
-    print(f'Finished redocking of peptides.')
+    print(f'Finished postprocessing of peptides.')
 
 
 if __name__ == '__main__':

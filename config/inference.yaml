@@ -2,6 +2,7 @@
 
 defaults:
   - eval
+  - _self_
 
 data:
   # CSV for path and metadata to receptors.

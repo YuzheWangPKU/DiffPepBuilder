@@ -2,6 +2,7 @@
 
 defaults:
   - base
+  - _self_
 
 data:
   train_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_train.csv
@@ -37,7 +38,7 @@ experiment:
   reset_training: True
   use_warm_start_conf: False
 
-  ckpt_dir: ${oc.env:BASE_PATH}/runs/${now:%b%d}/ckpt
+  ckpt_dir: ${oc.env:BASE_PATH}/runs/ckpt
 
   # Loss weights.
   trans_loss_weight: 1.0
@@ -61,6 +62,6 @@ experiment:
   chi_loss_t_filter: 0.25
 
   # Evaluation.
-  eval_dir: ${oc.env:BASE_PATH}/runs/${now:%b%d}/eval_outputs
+  eval_dir: ${oc.env:BASE_PATH}/runs/eval_outputs
   noise_scale: 1.0
   flip_align: False

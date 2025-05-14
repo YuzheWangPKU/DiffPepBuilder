@@ -1,6 +1,6 @@
 # PepPC-F and PepPC Datasets for DiffPepBuilder
 
-This repository provides information on PepPC-F and PepPC datasets for the paper [Target-Specific De Novo Peptide Binder Design with DiffPepBuilder](https://arxiv.org/abs/2405.00128).
+This repository provides information on PepPC-F and PepPC datasets for the paper [Target-Specific De Novo Peptide Binder Design with DiffPepBuilder](https://pubs.acs.org/doi/10.1021/acs.jcim.4c00975).
 
 ![plot](datasets.jpg)
 
@@ -21,3 +21,5 @@ The contents of PepPC dataset (natural protein-peptide complex dataset) are prov
 ```bash
 wget https://zenodo.org/records/13744959/files/PepPC_raw_data.tar.gz
 ```
+
+For fine-tuning and evaluation of the DiffPepDock model on protein–peptide docking tasks, the PepPC dataset is split based on deposition date. The training and validation sets, provided in [PepPC_before_202201.csv](PepPC_before_202201.csv), include 3,619 complexes deposited before January 1, 2022. The test set, provided in [PepPC_after_202201.csv](PepPC_after_202201.csv), comprises 205 complexes deposited after this date.
