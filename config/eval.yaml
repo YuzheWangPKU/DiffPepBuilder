@@ -9,7 +9,7 @@ data:
   val_csv_path: ${oc.env:BASE_PATH}/data/finetune_dataset/metadata_test.csv
   mask_lig_seq: True
   min_t: 0.01
-  num_t: 500
+  num_t: 200
   num_eval_samples: null
   num_repeat_per_eval_sample: 16
 
@@ -34,7 +34,7 @@ experiment:
   # Evaluation.
   eval_only: True
   eval_ckpt_path: ${oc.env:BASE_PATH}/experiments/checkpoints/diffpepbuilder_v1.pth
-  eval_dir: ${oc.env:BASE_PATH}/tests/eval_outputs
+  eval_dir: ${oc.env:BASE_PATH}/runs/eval_outputs
   noise_scale: 1.0
   seq_temperature: 0.1
 

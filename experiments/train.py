@@ -566,7 +566,7 @@ class Experiment:
 
             # Run inference
             infer_out = self.inference_fn(
-                valid_feats, min_t=min_t, num_t=num_t, noise_scale=noise_scale, aux_traj=True)
+                valid_feats, min_t=min_t, num_t=num_t, noise_scale=noise_scale, aux_traj=False)
             
             final_prot = infer_out['prot_traj'][0]
             final_chi = du.move_to_np(infer_out['chi_pred'])
