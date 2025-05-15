@@ -152,7 +152,9 @@ export BASE_PATH="your/path/to/DiffPepBuilder"
 torchrun --nproc-per-node=8 experiments/train.py
 ```
 
-The config file `config/base.yaml` contains the hyperparameters for the training process. You can modify these hyperparameters to customize the training process. Checkpoints will be saved every 10,000 steps after validation in the `runs/ckpt/` directory by default. Training logs will be saved every 2,500 steps. To run subsequent finetuning for docking tasks, please prepare the PepPC dataset, update the config file `config/finetune.yaml` accordingly, and run the following command:
+The config file `config/base.yaml` contains the hyperparameters for the training process. You can modify these hyperparameters to customize the training process. Checkpoints will be saved every 10,000 steps after validation in the `runs/ckpt/` directory by default. Training logs will be saved every 2,500 steps. 
+
+To run subsequent finetuning for docking tasks, please prepare the PepPC dataset, update the config file `config/finetune.yaml` accordingly, and run the following command:
 
 ```bash
 export BASE_PATH="your/path/to/DiffPepBuilder"
