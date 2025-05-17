@@ -7,10 +7,11 @@ This is the official repository for the [DiffPepBuilder](https://pubs.acs.org/do
 For any questions, please open an [issue](https://github.com/YuzheWangPKU/DiffPepBuilder/issues) or contact wangyuzhe_ccme@pku.edu.cn for more information.
 
 ## News
-* **[2025/5/14]** We extend our approach to protein–peptide docking through a derivative tool, DiffPepDock. The initial implementation and [model weights](https://zenodo.org/records/15398020) for the docking functionality have been publicly released.
-* **[2024/9/12]** Our research article is now published in **JCIM**! Dive into the details by checking out the full paper [here](https://pubs.acs.org/doi/10.1021/acs.jcim.4c00975) or on [arXiv](https://arxiv.org/abs/2405.00128).
+* **[2025/5/18]** A [Colab demo](https://colab.research.google.com/github/YuzheWangPKU/DiffPepBuilder/blob/main/examples/DiffPepDock_demo.ipynb) for DiffPepDock is now available. Feel free to give it a try!
+* **[2025/5/14]** We've extended our method to protein–peptide docking with a derivative tool, DiffPepDock. The initial implementation and [model weights](https://zenodo.org/records/15398020) for the docking functionality have been publicly released.
+* **[2024/9/12]** Our research article for DiffPepBuilder has been published in **JCIM**! Dive into the details by checking out the full paper [here](https://pubs.acs.org/doi/10.1021/acs.jcim.4c00975) or on [arXiv](https://arxiv.org/abs/2405.00128).
 * **[2024/9/11]** We released the [PepPC-F](datasets/PepPC-F_dataset.csv) and [PepPC](datasets/PepPC_dataset.csv) datasets for DiffPepBuilder on [Zenodo](https://zenodo.org/records/13744959). The training protocol has also been released. Please refer to the [Training](#training) section for more details.
-* **[2024/7/22]** We released the initial code, [model weights](https://zenodo.org/records/12794439), and a [Colab demo](https://colab.research.google.com/github/YuzheWangPKU/DiffPepBuilder/blob/main/examples/DiffPepBuilder_demo.ipynb) for DiffPepBuilder.
+* **[2024/7/22]** The initial code, [model weights](https://zenodo.org/records/12794439), and a [Colab demo](https://colab.research.google.com/github/YuzheWangPKU/DiffPepBuilder/blob/main/examples/DiffPepBuilder_demo.ipynb) for DiffPepBuilder are now available.
 
 
 ## Quick Start
