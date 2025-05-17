@@ -14,9 +14,13 @@ For any questions, please open an [issue](https://github.com/YuzheWangPKU/DiffPe
 
 
 ## Quick Start
-We provide a colaboratory notebook to demonstrate the usage of DiffPepBuilder. Please click the following link to open the notebook in Google Colab:
+We provide a Google Colab notebook to facilitate the use of DiffPepBuilder. Please click the following link to open the notebook in Google Colab:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/YuzheWangPKU/DiffPepBuilder/blob/main/examples/DiffPepBuilder_demo.ipynb)
+
+Similarly, a Colab notebook demonstrating the functionality of DiffPepDock is available at:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/YuzheWangPKU/DiffPepBuilder/blob/main/examples/DiffPepDock_demo.ipynb)
 
 ## Installation
 We recommend using a conda environment to install the required packages. Please clone this repository and navigate to the root directory:
@@ -98,7 +102,7 @@ wget https://zenodo.org/records/15398020/files/diffpepdock_v1.pth
 mv diffpepdock_v1.pth experiments/checkpoints/
 ```
 
-DiffPepDock provides user-friendly, automated scripts for docking batches of peptide sequences to a specific target protein. Here we provide an example of the redocking task of the substrate-binding protein YejA in complex with its native peptide fragment (PDB ID: [7Z6F](https://www.rcsb.org/structure/7Z6F)) to demonstrate the procedures of docking process. You may modify the file `examples/docking_data/peptide_seq.fasta` include custom peptide sequences for docking. Prior binding information including reference ligands, binding hotspots, or motifs can be specified in JSON format, as demonstrated in `examples/docking_data/docking_cases.json`, using the same syntax as in *de novo* design.
+DiffPepDock provides user-friendly, automated scripts for docking batches of peptide sequences to a specific target protein. Here we provide an example of the redocking task of the substrate-binding protein YejA in complex with its native peptide fragment (PDB ID: [7Z6F](https://www.rcsb.org/structure/7Z6F)) to demonstrate the procedures of docking process. You may modify the file `examples/docking_data/peptide_seq.fasta` include custom peptide sequences for docking. Prior binding information including reference ligands and binding motifs can be specified in JSON format, as demonstrated in `examples/docking_data/docking_cases.json`, using the same syntax as in *de novo* design.
 
 To preprocess the target and the peptide sequences, run the `experiments/process_batch_dock.py` script:
 
@@ -113,7 +117,7 @@ export BASE_PATH="your/path/to/DiffPepBuilder"
 torchrun --nproc-per-node=8 experiments/run_docking.py data.val_csv_path=data/docking_data/metadata_test.csv
 ```
 
-The config file `config/docking.yaml` contains the hyperparameters for the docking process. You can modify these hyperparameters to customize the docking process. Please refer to the section of *de novo* design for more details.
+The config file `config/docking.yaml` contains the hyperparameters for the docking process. You can modify these hyperparameters to customize the docking process.
 
 After running the inference script, the generated protein-peptide complexes will be saved in the `runs/docking/`. To run the side chain assembly using [Rosetta](https://rosettacommons.org/software/), please run the following script subsequently:
 

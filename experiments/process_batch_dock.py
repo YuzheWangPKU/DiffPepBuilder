@@ -1,7 +1,8 @@
 """
 Script to process receptor PDB file for subsequent peptide batch docking.
 NOTE: If more than one of the following is provided, the order of priority is: lig_chain -> hotspots -> motif.
-    Please remove the native peptide ligand chain if hotspots or motif is specified. 
+    Please remove the native peptide ligand chain if hotspots or motif is specified.
+    We preserve the "hotspots" format as legacy.
 """
 import pyrootutils
 
