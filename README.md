@@ -2,7 +2,7 @@
 
 This is the official repository for the [DiffPepBuilder](https://pubs.acs.org/doi/10.1021/acs.jcim.4c00975) and DiffPepDock tools.
 
-![plot](dpb_model.jpg)
+![plot](examples/figures/dpb_model.jpg)
 
 For any questions, please open an [issue](https://github.com/YuzheWangPKU/DiffPepBuilder/issues) or contact wangyuzhe_ccme@pku.edu.cn for more information.
 
