@@ -139,9 +139,7 @@ class SO3Diffuser:
             f'eps_{so3_conf.num_sigma}_omega_{so3_conf.num_omega}_min_sigma_{replace_period(so3_conf.min_sigma)}_max_sigma_{replace_period(so3_conf.max_sigma)}_schedule_{so3_conf.schedule}'
         )
 
-        # If cache directory doesn't exist, create it
-        if not os.path.isdir(cache_dir):
-            os.makedirs(cache_dir)
+        os.makedirs(cache_dir, exist_ok=True)
         pdf_cache = os.path.join(cache_dir, 'pdf_vals.npy')
         cdf_cache = os.path.join(cache_dir, 'cdf_vals.npy')
         score_norms_cache = os.path.join(cache_dir, 'score_norms.npy')

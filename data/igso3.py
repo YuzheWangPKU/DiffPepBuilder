@@ -113,9 +113,7 @@ class IGSO3:
             f'numT_{num_ts}_numOmega_{num_omegas}_minT_{min_t}_maxT_{max_t}'
         )
 
-        # If cache directory doesn't exist, create it
-        if not os.path.isdir(cache_dir):
-            os.makedirs(cache_dir)
+        os.makedirs(cache_dir, exist_ok=True)
         cdf_cache = os.path.join(cache_dir, 'cdf_vals.npy')
         pdf_cache = os.path.join(cache_dir, 'pdf_vals.npy')
         pdf_angle_cache = os.path.join(cache_dir, 'pdf_angle_vals.npy')
