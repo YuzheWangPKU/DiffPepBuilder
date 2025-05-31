@@ -64,13 +64,13 @@ class Postprocess:
         self.ori_dir = ori_dir
         self.out_dir = out_dir
         self.postprocess_dir = os.path.join(out_dir, "postprocess_results")
-
-        self.recon_file = os.path.join(self.postprocess_dir, f"{self.data_id}_recon.pdb")
-        self.fixed_file = os.path.join(self.postprocess_dir, f"{self.data_id}_fixed.pdb")
+        os.makedirs(self.postprocess_dir, exist_ok=True)
 
         self.pdb_string_relaxed = None
         self.pdb_string_ori_merged = None
         self.data_id = os.path.splitext(os.path.basename(self.pdb_file))[0]
+        self.recon_file = os.path.join(self.postprocess_dir, f"{self.data_id}_recon.pdb")
+        self.fixed_file = os.path.join(self.postprocess_dir, f"{self.data_id}_fixed.pdb")
 
         ori_pdb_name = re.match(r"^(.+?)(?:_sample_\d+(?:_ss)?)?$", self.data_id).group(1)
         self.ori_file = os.path.join(self.ori_dir, f"{ori_pdb_name}.pdb")

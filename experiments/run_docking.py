@@ -292,7 +292,7 @@ class Sampler(Experiment):
                 sample_id = i + self.ddp_info['local_rank'] * batch_size if self._use_ddp else i
                 pdb_sampled = os.path.join(
                     peptide_seq_dir, 
-                    f'{pdb_name}_{peptide_id}_sample_{sample_id}.pdb'
+                    f'{pdb_name}_sample_{sample_id}.pdb'
                 )
                 b_factors = np.tile(1 - unpad_fixed_mask[..., None], 37) * 100
 
@@ -314,8 +314,8 @@ class Sampler(Experiment):
                     postprocess = Postprocess(
                         saved_path,
                         "A",
-                        peptide_seq_dir,
                         ori_dir=self.post_conf.ori_pdbs,
+                        out_dir=peptide_seq_dir,
                         xml=self.post_conf.xml_path,
                         amber_relax=self.post_conf.amber_relax,
                         rosetta_relax=self.post_conf.rosetta_relax
