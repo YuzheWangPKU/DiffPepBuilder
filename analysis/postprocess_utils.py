@@ -13,9 +13,8 @@
 # limitations under the License.
 
 """Utils for minimization."""
+
 import io
-from data import residue_constants
-from Bio import PDB
 from Bio.PDB import *
 import numpy as np
 from typing import List
@@ -35,18 +34,19 @@ _TER_FORMAT_STRING = (
 
 _select = Select()
 
-class redock_para:
-    def __init__(self, test_file, ori_path, out_path, app, app_path, nproc, lig_ch, denovo, xml):
-        self.test_file = test_file
-        self.ori_path = ori_path
-        self.out_path = out_path
-        self.app = app
-        self.app_path = app_path
-        self.nproc = nproc
-        self.lig_ch = lig_ch
-        self.denovo = denovo
+
+class postprocess_para:
+    def __init__(
+        self, pdb_file, ori_dir, out_dir, lig_chain_id, xml, amber_relax, rosetta_relax
+    ):
+        self.pdb_file = pdb_file
+        self.ori_dir = ori_dir
+        self.out_dir = out_dir
+        self.lig_chain_id = lig_chain_id
         self.xml = xml
-  
+        self.amber_relax = amber_relax
+        self.rosetta_relax = rosetta_relax
+
 
 class PCLFixer(PDBFixer):
     def __init__(self, file_string=None):
@@ -62,7 +62,7 @@ class PCLFixer(PDBFixer):
 
         # Load the templates.
         self.templates = {}
-        templatesPath = os.path.join(os.path.dirname(__file__), 'templates')
+        templatesPath = os.path.join(os.path.dirname(__file__), "templates")
         for file in os.listdir(templatesPath):
             templatePdb = app.PDBFile(os.path.join(templatesPath, file))
             name = next(templatePdb.topology.residues()).name
@@ -70,8 +70,8 @@ class PCLFixer(PDBFixer):
 
 
 class PCLIO(PDBIO):
-    
-    def set_structure_multiple(self, pdb_object:List[object]):
+
+    def set_structure_multiple(self, pdb_object: List[object]):
         """Check what the user is providing and build a structure."""
         # The idea here is to build missing upstream components of
         # the SMCRA object representation. E.g., if the user provides
@@ -86,7 +86,7 @@ class PCLIO(PDBIO):
 
             if pdb_object[0].level == "M":
                 for i in pdb_object:
-                  sb.structure.add(i.copy())
+                    sb.structure.add(i.copy())
                 self.structure = sb.structure
             else:  # Not a Model
                 sb.init_model(0)
@@ -187,140 +187,39 @@ class PCLIO(PDBIO):
                 string.append("ENDMDL\n")
         if write_end:
             string.append("END   \n")
-        return ''.join(string)
+        return "".join(string)
 
 
-def overwrite_b_factors(pdb_str: str, bfactors: np.ndarray) -> str:
-  """Overwrites the B-factors in pdb_str with contents of bfactors array.
-
-  Args:
-    pdb_str: An input PDB string.
-    bfactors: A numpy array with shape [1, n_residues, 37]. We assume that the
-      B-factors are per residue; i.e. that the nonzero entries are identical in
-      [0, i, :].
-
-  Returns:
-    A new PDB string with the B-factors replaced.
-  """
-  if bfactors.shape[-1] != residue_constants.atom_type_num:
-    raise ValueError(
-        f'Invalid final dimension size for bfactors: {bfactors.shape[-1]}.')
-
-  parser = PDB.PDBParser(QUIET=True)
-  handle = io.StringIO(pdb_str)
-  structure = parser.get_structure('', handle)
-
-  curr_resid = ('', '', '')
-  idx = -1
-  for atom in structure.get_atoms():
-    atom_resid = atom.parent.get_id()
-    if atom_resid != curr_resid:
-      idx += 1
-      if idx >= bfactors.shape[0]:
-        raise ValueError('Index into bfactors exceeds number of residues. '
-                         'B-factors shape: {shape}, idx: {idx}.')
-    curr_resid = atom_resid
-    atom.bfactor = bfactors[idx, residue_constants.atom_order['CA']]
-
-  new_pdb = io.StringIO()
-  pdb_io = PDB.PDBIO()
-  pdb_io.set_structure(structure)
-  pdb_io.save(new_pdb)
-  return new_pdb.getvalue()
-
-
-def assert_equal_nonterminal_atom_types(
-    atom_mask: np.ndarray, ref_atom_mask: np.ndarray):
-  """Checks that pre- and post-minimized proteins have same atom set."""
-  # Ignore any terminal OXT atoms which may have been added by minimization.
-  oxt = residue_constants.atom_order['OXT']
-  no_oxt_mask = np.ones(shape=atom_mask.shape, dtype=bool)
-  no_oxt_mask[..., oxt] = False
-  np.testing.assert_almost_equal(ref_atom_mask[no_oxt_mask],
-                                 atom_mask[no_oxt_mask])
-
-def read_log_adcp(log):
-    f = open(log)
-    lines = f.readlines()
-    f.close()
-    #a_r = []
-    best_rmsd = [100,100]
-    best_affi = [100,100]
-    data = []
-    for i in lines:
-        if len(i.split()) == 8 or len(i.split()) == 9:
-            if i[0:4] == 'ATOM':
+def summarize_statistics(score_files: List[str], keys=["ddg_norepack", "rmsd"]):
+    """
+    Dataframe of scores by default, first column is affinity or ddG, second represents rmsd before and after postprocessing.
+    """
+    scores = []
+    indexes = []
+    for score_file in score_files:
+        json_file = score_file.replace(".sc", ".json")
+        jsf = open(json_file, "w")
+        sf = open(score_file)
+        lines = [i for i in sf.readlines()]
+        sf.close()
+        for idx, line in enumerate(lines):
+            lines[idx] = f'"{idx}" : ' + line.strip() + ",\n"
+        lines = [i for i in lines if ("nan" not in i) and (len(i) >= 100)]
+        lines[0] = "{" + lines[0]
+        lines[-1] = lines[-1].strip()[:-1] + "}\n"
+        jsf.writelines(lines)
+        jsf.close()
+        with open(json_file) as js:
+            _scores = json.load(js)
+        for i in _scores:
+            try:
+                scores.append([_scores[i][j] for j in keys])
+                indexes.append(
+                    os.path.join(os.path.dirname(score_file), _scores[i]["decoy"])
+                )
+            except:
                 continue
-            if i[0] == '#':
-                continue
-            if i[0] == ' ':
-                data.append([float(i.split()[1]),float(i.split()[3])])
-                if float(i.split()[1]) < best_affi[0]:
-                    best_affi = [float(i.split()[1]),float(i.split()[3])]
-                if float(i.split()[3]) < best_rmsd[1]:
-                    best_rmsd = [float(i.split()[1]),float(i.split()[3])]
-    a_r=[best_affi,best_rmsd]
-    return a_r,data
-
-def statistic_redock(score_files:List[str], app=None, keys=['ddg_norepack', 'rmsd']):
-    '''
-    Dataframe of scores by default, first column is affinity or ddG, second represents redock-rmsd
-    '''
-    if app == 'flexpepdock':
-        scores = []
-        indexes = []
-        for score_file in score_files:
-            json_file = score_file.replace('.sc','.json')
-            jsf = open(json_file,'w')
-            sf = open(score_file)
-            lines = [i for i in sf.readlines()]
-            sf.close()
-            for idx, line in enumerate(lines):
-                lines[idx] = f'\"{idx}\" : ' +line.strip() + ',\n'
-            lines[0] = '{' + lines[0]
-            lines[-1] = lines[-1].strip()[:-1]+'}\n'
-            jsf.writelines(lines)
-            jsf.close()
-            with open(json_file) as js:
-                _scores = json.load(js)
-            for i in _scores:
-                try:
-                    scores.append([_scores[i][j] for j in keys])
-                    indexes.append(os.path.join(os.path.dirname(score_file), _scores[i]['decoy']))
-                except:
-                    continue
-        scores = np.array(scores)
-        data = {'keys':keys, 'scores':scores, 'pathes':indexes}
-        return pd.DataFrame(data=data['scores'],index=data['pathes'],columns=data['keys'])
-    
-    elif app == 'ADCP':
-        data = {'keys':['affinity','rmsd'], 'scores':np.array([read_log_adcp(i)[0] for i in score_files]),\
-                 'pathes':[os.path.basename(i) for i in score_files]}
-        return pd.DataFrame(data=data['scores'],index=data['pathes'],columns=data['keys'])
-    
-    elif app == 'interface_analyzer':
-        scores = []
-        indexes = []
-        for score_file in score_files:
-            json_file = score_file.replace('.sc','.json')
-            jsf = open(json_file,'w')
-            sf = open(score_file)
-            lines = [i for i in sf.readlines()]
-            sf.close()
-            for idx, line in enumerate(lines):
-                lines[idx] = f'\"{idx}\" : ' +line.strip() + ',\n'
-            lines = [i for i in lines if ('nan' not in i) and (len(i) >= 100)]
-            lines[0] = '{' + lines[0]
-            lines[-1] = lines[-1].strip()[:-1]+'}\n'
-            jsf.writelines(lines)
-            jsf.close()
-            with open(json_file) as js:
-                _scores = json.load(js)
-            for i in _scores:
-                try:
-                    scores.append([_scores[i][j] for j in keys])
-                    indexes.append(os.path.join(os.path.dirname(score_file), _scores[i]['decoy']))
-                except:
-                    continue
-        data = {'keys':keys, 'scores':scores, 'pathes':indexes}
-        return pd.DataFrame(data=data['scores'], index=data['pathes'], columns=data['keys'])
+    data = {"keys": keys, "scores": scores, "paths": indexes}
+    return pd.DataFrame(
+        data=data["scores"], index=data["paths"], columns=data["keys"]
+    )
