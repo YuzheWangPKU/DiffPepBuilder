@@ -56,8 +56,7 @@ class Postprocess:
         out_dir: str,
         xml=None,
         amber_relax=True,
-        rosetta_relax=True,
-        use_gpu=False
+        rosetta_relax=True
     ):
         self.pdb_file = pdb_file
         self.lig_chain_id = lig_chain_id
@@ -79,7 +78,6 @@ class Postprocess:
         self.xml = xml
         self.amber_relax = amber_relax
         self.rosetta_relax = rosetta_relax
-        self.use_gpu = use_gpu
 
     def reconstruct(self):
         s_pcl = P.get_structure("s_pcl", self.pdb_file)[0]
@@ -98,13 +96,13 @@ class Postprocess:
             max_iterations=RELAX_MAX_ITERATIONS,
             tolerance=RELAX_ENERGY_TOLERANCE,
             max_outer_iterations=RELAX_MAX_OUTER_ITERATIONS,
-            use_gpu=self.use_gpu
+            use_gpu=False
         )
         self.pdb_string_relaxed, _, = ABRlx.process(open(self.pdb_file).read())
         relaxed_file = os.path.join(self.postprocess_dir, f"{self.data_id}_amber_relaxed.pdb")
         write_from_string(self.pdb_string_relaxed, relaxed_file)
         self.pdb_file = relaxed_file
-            
+        
     def interface_analyze(self):
         init(
             "-mute all "

@@ -318,8 +318,7 @@ class Sampler(Experiment):
                         out_dir=peptide_seq_dir,
                         xml=self._post_conf.xml_path,
                         amber_relax=self._post_conf.amber_relax,
-                        rosetta_relax=self._post_conf.rosetta_relax,
-                        use_gpu=self._exp_conf.use_gpu,
+                        rosetta_relax=self._post_conf.rosetta_relax
                     )
                     postprocess()
                     self._log.info(f'Postprocessing completed for {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id})')
