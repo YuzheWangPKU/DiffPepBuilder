@@ -45,7 +45,14 @@ cd SSbuilder
 tar -xvf SSBLIB.tar.gz
 ```
 
-The post-processing procedure requires [Rosetta](https://rosettacommons.org/software/) to be installed. Please download the latest version of Rosetta from the [official website](https://rosettacommons.org/download/) and follow the [installation instructions](https://docs.rosettacommons.org/docs/latest/getting_started/Getting-Started).
+The post-processing procedure requires [PyRosetta](https://www.pyrosetta.org/) to be installed. We recommend installing the pre-built wheel using the following commands:
+
+```bash
+wget https://west.rosettacommons.org/pyrosetta/release/release/PyRosetta4.MinSizeRel.python39.linux.wheel/pyrosetta-2024.39+release.59628fb-cp39-cp39-linux_x86_64.whl
+pip install pyrosetta-2024.39+release.59628fb-cp39-cp39-linux_x86_64.whl
+```
+
+Please adjust the version or build to match your Python environment and system architecture.
 
 ## *De Novo* Design
 To *de novo* generate peptide binders for a given target protein, please first download the model weights into `experiments/checkpoints/` from [Zenodo](https://zenodo.org/records/12794439). You can use the following command to download the model weights:
@@ -86,14 +93,14 @@ The config file `config/inference.yaml` contains the hyperparameters for the inf
 
 You can modify these hyperparameters to customize the inference process. For more details on the hyperparameters, please refer to our [paper](https://pubs.acs.org/doi/10.1021/acs.jcim.4c00975).
 
-After running the inference script, the generated peptide binders will be saved in the `runs/inference/`. To run the side chain assembly and energy minimization using [Rosetta](https://rosettacommons.org/software/), please run the following script subsequently:
+After running the inference script, the generated peptide binders will be saved in the `runs/inference/`. To run the side chain reconstruction and optimization, please run the following script subsequently:
 
 ```bash
 export BASE_PATH="your/path/to/DiffPepBuilder"
-python experiments/run_postprocess.py --in_path runs/inference --ori_path examples/receptor_data --interface_analyzer_path your/path/to/rosetta/main/source/bin/rosetta_scripts.static.linuxgccrelease
+python experiments/run_postprocess.py --in_pdbs runs/inference --ori_pdbs examples/receptor_data --amber_relax --rosetta_relax
 ```
 
-Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final peptide binders in the `runs/inference/.../pdbs_redock/` directory and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `runs/inference/redock_results.csv` file.
+The script will generate the final peptide binders and calculate the binding ddG values of the generated peptide binders. The results will be summarized in the `runs/inference/postprocess_results.csv` file.
 
 ## Docking
 To run peptide docking protocols for a given target protein, please first download the model weights into `experiments/checkpoints/` from [Zenodo](https://zenodo.org/records/15398020). You can use the following command to download the model weights:
@@ -118,16 +125,7 @@ export BASE_PATH="your/path/to/DiffPepBuilder"
 torchrun --nproc-per-node=8 experiments/run_docking.py data.val_csv_path=data/docking_data/metadata_test.csv
 ```
 
-The config file `config/docking.yaml` contains the hyperparameters for the docking process. You can modify these hyperparameters to customize the docking process.
-
-After running the inference script, the generated protein-peptide complexes will be saved in the `runs/docking/`. To run the side chain assembly using [Rosetta](https://rosettacommons.org/software/), please run the following script subsequently:
-
-```bash
-export BASE_PATH="your/path/to/DiffPepBuilder"
-python experiments/run_postprocess.py --in_path runs/docking --ori_path examples/docking_data --interface_analyzer_path your/path/to/rosetta/main/source/bin/rosetta_scripts.static.linuxgccrelease
-```
-
-Modify the `interface_analyzer_path` flag to the path of the Rosetta `interface_analyzer` executable. The script will generate the final protein-peptide complexes in the `runs/docking/.../pdbs_redock/` directory.
+The config file `config/docking.yaml` contains the hyperparameters for both the docking and postprocessing procedures. You can modify these hyperparameters to customize the overall workflow. Upon completion of the inference script, the generated protein-peptide complexes will be saved in the `runs/docking/` directory.
 
 ## Training
 To train the DiffPepBuilder model from scratch, please download the training data from [Zenodo](https://zenodo.org/records/13744959) and unzip the data in the `data/` directory:

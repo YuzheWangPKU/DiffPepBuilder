@@ -94,7 +94,6 @@ def read_receptor_info(json_path, receptor_name):
 def renumber_rec_chain(pdb_path, json_path, in_place=False):
     """
     Re-number the receptor chain IDs for compatibility. Optionally save the modified files (PDB and JSON) in-place.
-    Return True if the PDB and JSON files are updated.
     """
     parser = PDB.PDBParser()
     structure = parser.get_structure('', pdb_path)
@@ -241,26 +240,14 @@ def get_motif_center_pos(infile:str, motif=None, hotspots=None, lig_chain_str=No
 def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
     """
     Process protein file into usable, smaller pickles.
-
-    Args:
-        file_path: Path to file to read.
-        write_dir: Directory to write pickles to.
-        motif_str: 'A1-A2-A3-... -B4-...'
-        hotspots: 'A1-A2-A3-... -B4-...'
-        lig_chain_str: 'A'
-
-    Returns:
-        Saves processed protein to pickle and returns metadata.
-
-    Raises:
-        DataError if a known filtering rule is hit.
-        All other errors are unexpected and are propogated.
     """
     pdb_name = os.path.basename(file_path).replace('.pdb', '').replace('_receptor', '')
 
     if args.receptor_info_path is not None:
-        renumber_rec_chain(file_path, args.receptor_info_path, in_place=True)
         motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
+        if lig_chain_str != "A":
+            renumber_rec_chain(file_path, args.receptor_info_path, in_place=True)
+            motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
     else:
         motif_str, hotspots, lig_chain_str = None, None, None
 

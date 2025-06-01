@@ -30,3 +30,9 @@ experiment:
   noise_scale: 1.0
   flip_align: False
   save_traj: False
+
+postprocess:
+  amber_relax: True
+  rosetta_relax: True
+  xml_path: ${oc.env:BASE_PATH}/analysis/interface_analyze.xml
+  ori_pdbs: ${oc.env:BASE_PATH}/../test_case

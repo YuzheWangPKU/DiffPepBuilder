@@ -14,7 +14,7 @@ root = pyrootutils.setup_root(
 import os
 import argparse
 from datetime import datetime
-from analysis.metrics import redock_metric_parallel
+from analysis.metrics import postprocess_metric_parallel
 
 now = datetime.now()
 
@@ -25,25 +25,17 @@ def create_parser():
     )
 
     parser.add_argument(
-        "--in_path",
+        "--in_pdbs",
         type=str,
         required=True,
         help="Path to the directory containing the test PDB files."
     )
 
     parser.add_argument(
-        "--ori_path",
+        "--ori_pdbs",
         type=str,
         default=f"{root}/data/receptor_data/receptor_raw_data",
         help="Path to the directory containing native pdb complexes."
-    )
-
-    parser.add_argument(
-        "--redock_app",
-        type=str,
-        default="interface_analyzer",
-        choices=["ADCP", "flexpepdock", "interface_analyzer"],
-        help="Specify the redocking application to use (ADCP, flexpepdock, or interface_analyzer). Defaults to interface_analyzer."
     )
     
     parser.add_argument(
@@ -54,24 +46,22 @@ def create_parser():
     )
 
     parser.add_argument(
-        "--redock_xml_path",
+        "--postprocess_xml_path",
         type=str,
         default=f"{root}/analysis/interface_analyze.xml",
-        help="Path to the XML file containing the redocking protocol."
+        help="Path to the XML file containing the postprocessing protocol."
     )
 
     parser.add_argument(
-        "--flexpepdock_path",
-        type=str,
-        default="rosetta/rosetta_bin_linux_2021.16.61629_bundle/main/source/bin/FlexPepDocking.default.linuxgccrelease",
-        help="Path to the FlexPepDock binary."
+        "--amber_relax",
+        action='store_true',
+        help="Relax the structures using Amber force field."
     )
 
     parser.add_argument(
-        "--interface_analyzer_path",
-        type=str,
-        default="rosetta/rosetta_bin_linux_2021.16.61629_bundle/main/source/bin/rosetta_scripts.static.linuxgccrelease",
-        help="Path to the interface analyzer binary."
+        "--rosetta_relax",
+        action='store_true',
+        help="Relax the structures using Rosetta FastRelax."
     )
 
     return parser
@@ -79,28 +69,20 @@ def create_parser():
 
 def main(args):
     test_files = []
-    for root, dirs, files in os.walk(args.in_path):
+    for root, dirs, files in os.walk(args.in_pdbs):
         for file in files:
             if file.endswith('.pdb'):
                 test_files.append(os.path.join(root, file))
-    app_paths = {
-        "flexpepdock": args.flexpepdock_path,
-        "interface_analyzer": args.interface_analyzer_path,
-        "ADCP": None
-    }
-    redock_app_path = app_paths[args.redock_app]
     
-    print(f'Start postprocessing of peptides with {args.redock_app}...')
-    redock_metric_parallel(
+    print(f'Start postprocessing of peptides...')
+    postprocess_metric_parallel(
         files=test_files,
-        ori_path=args.ori_path,
-        nproc=args.nproc,
-        app=args.redock_app,
-        app_path=redock_app_path,
+        ori_dir=args.ori_pdbs,
         lig_chs=['A' for _ in test_files],
-        denovo=True,
-        xml=args.redock_xml_path,
-        out_path=os.path.join(args.in_path, 'redock_results.csv')
+        xml=args.postprocess_xml_path,
+        out_path=os.path.join(args.in_pdbs, 'postprocess_results.csv'),
+        amber_relax=args.amber_relax,
+        rosetta_relax=args.rosetta_relax
     )
     print(f'Finished postprocessing of peptides.')
 

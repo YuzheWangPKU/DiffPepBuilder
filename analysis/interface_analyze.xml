@@ -1,4 +1,4 @@
-<!--CYC_BUILDER post processes design protocol-->
+<!--Postprocessing protocol-->
 <ROSETTASCRIPTS>
 
     <SCOREFXNS>
@@ -218,9 +218,6 @@
     
         <!--Moving peptide around in the protein pocket-->
         <Shear name="shake" residue_selector="CYC" scorefxn="score"/>
-
-        <!--Docking mover-->
-        <!--FlexPepDock name="redock" min_only="true"/-->
     
         <!--Series of analysis on the binding metrics-->
         <InterfaceAnalyzerMover name="interface" scorefxn="score" packstat="true" interface_sc="true" pack_input="false" pack_separated="1" ligandchain="A" />
@@ -232,7 +229,6 @@
         <Add mover="docking_tree"/>
         <Add mover="min_pep" />
         <Add mover="relax2"/>
-        <!--Add mover="redock"/-->
         <Add mover="interface"/>
         <Add metrics="rmsd"/>
         <Add filter="ddg_norepack"/>
@@ -245,11 +241,3 @@
     </PROTOCOLS>
     <OUTPUT />
 </ROSETTASCRIPTS>
-
-
-
-
-
-
-
-

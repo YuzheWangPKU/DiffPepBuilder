@@ -27,6 +27,7 @@ from omegaconf import DictConfig
 from openfold.utils import rigid_utils
 
 from analysis import utils as au
+from analysis.postprocess import Postprocess
 from data import utils as du
 from data import pdb_data_loader, residue_constants
 from data.pdb_data_loader import PdbDataset
@@ -167,6 +168,7 @@ class Sampler(Experiment):
             conf: DictConfig,
         ):
         super().__init__(conf=conf)
+        self._post_conf = conf.postprocess
 
 
     def run_sampling(self):
@@ -305,7 +307,25 @@ class Sampler(Experiment):
                     b_factors=b_factors
                 )
                 self._log.info(f'Done sample {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id}), saved to {saved_path}')
+
+                # Postprocessing
+                self._log.info(f'Postprocessing {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id})...')
+                try:
+                    postprocess = Postprocess(
+                        saved_path,
+                        "A",
+                        ori_dir=self._post_conf.ori_pdbs,
+                        out_dir=peptide_seq_dir,
+                        xml=self._post_conf.xml_path,
+                        amber_relax=self._post_conf.amber_relax,
+                        rosetta_relax=self._post_conf.rosetta_relax
+                    )
+                    postprocess()
+                    self._log.info(f'Postprocessing completed for {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id})')
+                except Exception as e:
+                    self._log.error(f'Postprocessing failed for {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id}): {e}')
         
+                # Save denoising trajectory
                 if self._exp_conf.save_traj:
                     prot_traj = infer_out['prot_traj'][:, i, ...]  # [T, batch_size, N_res, 37, 3] -> [T, N_res, 37, 3]
                     unpad_prot_traj = prot_traj[:, res_mask[i], ...]
