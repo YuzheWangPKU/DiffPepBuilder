@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 from analysis.amber_minimize import AmberRelaxation
 from Bio.PDB import *
@@ -57,7 +56,8 @@ class Postprocess:
         out_dir: str,
         xml=None,
         amber_relax=True,
-        rosetta_relax=True
+        rosetta_relax=True,
+        use_gpu=False
     ):
         self.pdb_file = pdb_file
         self.lig_chain_id = lig_chain_id
@@ -72,13 +72,14 @@ class Postprocess:
         self.recon_file = os.path.join(self.postprocess_dir, f"{self.data_id}_recon.pdb")
         self.fixed_file = os.path.join(self.postprocess_dir, f"{self.data_id}_fixed.pdb")
 
-        ori_pdb_name = re.match(r"^(.+?)(?:_sample_\d+(?:_ss)?)?$", self.data_id).group(1)
+        ori_pdb_name = self.data_id.split("_", 1)[0]
         self.ori_file = os.path.join(self.ori_dir, f"{ori_pdb_name}.pdb")
         if not os.path.exists(self.ori_file):
             raise FileNotFoundError(f"Original PDB file not found: {self.ori_file}")
         self.xml = xml
         self.amber_relax = amber_relax
         self.rosetta_relax = rosetta_relax
+        self.use_gpu = use_gpu
 
     def reconstruct(self):
         s_pcl = P.get_structure("s_pcl", self.pdb_file)[0]
@@ -97,7 +98,7 @@ class Postprocess:
             max_iterations=RELAX_MAX_ITERATIONS,
             tolerance=RELAX_ENERGY_TOLERANCE,
             max_outer_iterations=RELAX_MAX_OUTER_ITERATIONS,
-            use_gpu=False,
+            use_gpu=self.use_gpu
         )
         self.pdb_string_relaxed, _, = ABRlx.process(open(self.pdb_file).read())
         relaxed_file = os.path.join(self.postprocess_dir, f"{self.data_id}_amber_relaxed.pdb")

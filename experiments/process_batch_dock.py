@@ -105,8 +105,10 @@ def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cuto
     pdb_name = os.path.basename(file_path).replace('.pdb', '').replace('_receptor', '')
 
     if args.receptor_info_path is not None:
-        renumber_rec_chain(file_path, args.receptor_info_path, in_place=True)
         motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
+        if lig_chain_str != "A":
+            renumber_rec_chain(file_path, args.receptor_info_path, in_place=True)
+            motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
     else:
         motif_str, hotspots, lig_chain_str = None, None, None
 
