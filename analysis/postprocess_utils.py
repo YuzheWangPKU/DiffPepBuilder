@@ -35,19 +35,6 @@ _TER_FORMAT_STRING = (
 _select = Select()
 
 
-class postprocess_para:
-    def __init__(
-        self, pdb_file, ori_dir, out_dir, lig_chain_id, xml, amber_relax, rosetta_relax
-    ):
-        self.pdb_file = pdb_file
-        self.ori_dir = ori_dir
-        self.out_dir = out_dir
-        self.lig_chain_id = lig_chain_id
-        self.xml = xml
-        self.amber_relax = amber_relax
-        self.rosetta_relax = rosetta_relax
-
-
 class PCLFixer(PDBFixer):
     def __init__(self, file_string=None):
         # Check to make sure only one option has been specified.

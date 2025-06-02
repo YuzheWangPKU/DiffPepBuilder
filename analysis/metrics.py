@@ -3,7 +3,7 @@
 import os
 import tree
 import numpy as np
-from typing import List
+from typing import List, Optional
 import multiprocessing as mp
 
 from tmtools import tm_align
@@ -13,7 +13,7 @@ from Bio.Align import PairwiseAligner
 from openfold.np import residue_constants
 from data import utils as du
 from analysis.postprocess import Postprocess
-from analysis.postprocess_utils import postprocess_para, summarize_statistics
+from analysis.postprocess_utils import summarize_statistics
 from data.residue_constants import restypes
 
 
@@ -162,25 +162,26 @@ def ca_ca_clashes(ca_pos, tol=1.5):
     return np.sum(clashes), np.mean(clashes)
 
 
-def postprocess_metric(postprocess_para: postprocess_para):
-    pdb_file = postprocess_para.pdb_file
-    ori_dir = postprocess_para.ori_dir
-    out_dir = postprocess_para.out_dir
-    lig_chain_id = postprocess_para.lig_chain_id
-    xml = postprocess_para.xml
-    amber_relax = postprocess_para.amber_relax
-    rosetta_relax = postprocess_para.rosetta_relax
-    print(f"Running interface analyze protocol on {pdb_file}")
-    p = PDBParser(QUIET=1)
-    s = p.get_structure("", pdb_file)[0]
-    chains = [i.id for i in s.get_chains()]
+def postprocess_metric(
+    pdb_file: str,
+    ori_dir: str,
+    out_dir: str,
+    lig_chain_id: Optional[str],
+    xml: Optional[str],
+    amber_relax: bool = False,
+    rosetta_relax: bool = False,
+    verbose: bool = False,
+):
+    print(f"Running postprocessing protocol on {pdb_file}")
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure("", pdb_file)[0]
+    all_chains = [chain.id for chain in structure.get_chains()]
     if lig_chain_id is not None:
-        chains.remove(lig_chain_id)
+        all_chains.remove(lig_chain_id)
     else:
-        lig_chain_id = chains[0]
+        lig_chain_id = all_chains[0] if all_chains else None
     if not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
-
     try:
         postprocess = Postprocess(
             pdb_file,
@@ -189,7 +190,8 @@ def postprocess_metric(postprocess_para: postprocess_para):
             ori_dir,
             xml=xml,
             amber_relax=amber_relax,
-            rosetta_relax=rosetta_relax
+            rosetta_relax=rosetta_relax,
+            verbose=verbose,
         )
         postprocess()
     except Exception as e:
@@ -198,37 +200,40 @@ def postprocess_metric(postprocess_para: postprocess_para):
 
 def postprocess_metric_parallel(
     files: List[str],
-    ori_dir,
-    nproc=os.cpu_count()-1,
-    lig_chain_ids=None,
-    xml=None,
-    out_path="./",
-    amber_relax=False,
-    rosetta_relax=False
+    ori_dir: str,
+    nproc: Optional[int] = max(os.cpu_count() - 1, 1),
+    lig_chain_ids : Optional[List[Optional[str]]] = None,
+    xml: Optional[str] = None,
+    out_path: str = "./postprocess_results.csv",
+    amber_relax: bool = False,
+    rosetta_relax: bool = False,
+    verbose: bool = False,
 ):
-
     if lig_chain_ids is not None:
-        assert len(files) == len(lig_chain_ids), "Length of files and lig_chain_ids must match."
+        if len(lig_chain_ids) != len(files):
+            raise ValueError("Length of files and lig_chain_ids must match.")
     else:
-        lig_chain_ids = [None for i in files]
+        lig_chain_ids = [None] * len(files)
 
-    _runs = [
-        postprocess_para(file, ori_dir, os.path.dirname(file), lig_chain_id, xml, amber_relax, rosetta_relax)
-        for file, lig_chain_id in zip(files, lig_chain_ids)
-    ]
+    args_list = []
+    score_files = set()
+    for pdb_file, lig_chain_id in zip(files, lig_chain_ids):
+        out_dir = os.path.dirname(pdb_file)
+        args_list.append((pdb_file, ori_dir, out_dir, lig_chain_id, xml, amber_relax, rosetta_relax, verbose))
+        score_files.add(os.path.join(out_dir, "postprocess_outputs", "interf_score.sc"))
 
-    pool = mp.Pool(nproc)
-    pool.map(postprocess_metric, _runs)
-    pool.close()
-    pool.join()
-    docking_paths = []
-    for i in files:
-        docking_path = os.path.join(os.path.dirname(i), "postprocess_outputs")
-        if docking_path not in docking_paths:
-            docking_paths.append(docking_path)
-    score_files = []
-    for docking_path in docking_paths:
-        score_files.append(os.path.join(docking_path, "interf_score.sc"))
-    df = summarize_statistics(score_files)
+    with mp.Pool(nproc) as pool:
+        pool.starmap(postprocess_metric, args_list)
 
+    for score_file in score_files:
+        if not os.path.exists(score_file):
+            print(f"Warning: score file {score_file} does not exist.")
+            score_files.remove(score_file)
+
+    if not score_files:
+        print("No score files found. Exiting.")
+        return
+
+    df = summarize_statistics(list(score_files))
     df.to_csv(out_path)
+    print(f"Postprocessing metrics saved to {out_path}")
