@@ -83,12 +83,6 @@ def create_parser():
         default=32
     )
 
-    parser.add_argument(
-        '--verbose',
-        help='Whether to log everything.',
-        action='store_true'
-    )
-
     return parser
 
 
@@ -401,7 +395,6 @@ def process_serially(all_paths, write_dir, hotspot_cutoff=8, pocket_cutoff=10):
 
 def process_fn(
         file_path,
-        verbose=None,
         write_dir=None,
         hotspot_cutoff=8,
         pocket_cutoff=10        
@@ -415,12 +408,10 @@ def process_fn(
             pocket_cutoff=pocket_cutoff
         )
         elapsed_time = time.time() - start_time
-        if verbose:
-            print(f'Finished {file_path} in {elapsed_time:2.2f}s')
+        print(f'Finished {file_path} in {elapsed_time:2.2f}s')
         return metadata, raw_seq_data
     except errors.DataError as e:
-        if verbose:
-            print(f'Failed {file_path}: {e}')
+        print(f'Failed {file_path}: {e}')
         return None, None
 
 
@@ -457,7 +448,6 @@ def main(args):
     else:
         _process_fn = fn.partial(
             process_fn,
-            verbose=args.verbose,
             write_dir=write_dir,
             hotspot_cutoff=args.hotspot_cutoff,
             pocket_cutoff=args.pocket_cutoff

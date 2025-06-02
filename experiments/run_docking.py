@@ -309,21 +309,22 @@ class Sampler(Experiment):
                 self._log.info(f'Done sample {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id}), saved to {saved_path}')
 
                 # Postprocessing
-                self._log.info(f'Postprocessing {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id})...')
-                try:
-                    postprocess = Postprocess(
-                        saved_path,
-                        "A",
-                        ori_dir=self._post_conf.ori_pdbs,
-                        out_dir=peptide_seq_dir,
-                        xml=self._post_conf.xml_path,
-                        amber_relax=self._post_conf.amber_relax,
-                        rosetta_relax=self._post_conf.rosetta_relax
-                    )
-                    postprocess()
-                    self._log.info(f'Postprocessing completed for {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id})')
-                except Exception as e:
-                    self._log.error(f'Postprocessing failed for {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id}): {e}')
+                if self._post_conf.run_postprocess:
+                    self._log.info(f'Postprocessing {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id})...')
+                    try:
+                        postprocess = Postprocess(
+                            saved_path,
+                            "A",
+                            ori_dir=self._post_conf.ori_pdbs,
+                            out_dir=peptide_seq_dir,
+                            xml=self._post_conf.xml_path,
+                            amber_relax=self._post_conf.amber_relax,
+                            rosetta_relax=self._post_conf.rosetta_relax
+                        )
+                        postprocess()
+                        self._log.info(f'Postprocessing completed for {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id})')
+                    except Exception as e:
+                        self._log.error(f'Postprocessing failed for {pdb_name} (peptide ligand id: {peptide_id}, sample: {sample_id}): {e}')
         
                 # Save denoising trajectory
                 if self._exp_conf.save_traj:

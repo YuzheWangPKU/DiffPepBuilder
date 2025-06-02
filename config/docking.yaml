@@ -32,6 +32,7 @@ experiment:
   save_traj: False
 
 postprocess:
+  run_postprocess: True
   amber_relax: True
   rosetta_relax: True
   xml_path: ${oc.env:BASE_PATH}/analysis/interface_analyze.xml
