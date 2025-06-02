@@ -169,8 +169,7 @@ def postprocess_metric(
     lig_chain_id: Optional[str],
     xml: Optional[str],
     amber_relax: bool = False,
-    rosetta_relax: bool = False,
-    verbose: bool = False,
+    rosetta_relax: bool = False
 ):
     print(f"Running postprocessing protocol on {pdb_file}")
     parser = PDBParser(QUIET=True)
@@ -190,8 +189,7 @@ def postprocess_metric(
             ori_dir,
             xml=xml,
             amber_relax=amber_relax,
-            rosetta_relax=rosetta_relax,
-            verbose=verbose,
+            rosetta_relax=rosetta_relax
         )
         postprocess()
     except Exception as e:
@@ -206,8 +204,7 @@ def postprocess_metric_parallel(
     xml: Optional[str] = None,
     out_path: str = "./postprocess_results.csv",
     amber_relax: bool = False,
-    rosetta_relax: bool = False,
-    verbose: bool = False,
+    rosetta_relax: bool = False
 ):
     if lig_chain_ids is not None:
         if len(lig_chain_ids) != len(files):
@@ -219,7 +216,7 @@ def postprocess_metric_parallel(
     score_files = set()
     for pdb_file, lig_chain_id in zip(files, lig_chain_ids):
         out_dir = os.path.dirname(pdb_file)
-        args_list.append((pdb_file, ori_dir, out_dir, lig_chain_id, xml, amber_relax, rosetta_relax, verbose))
+        args_list.append((pdb_file, ori_dir, out_dir, lig_chain_id, xml, amber_relax, rosetta_relax))
         score_files.add(os.path.join(out_dir, "postprocess_outputs", "interf_score.sc"))
 
     with mp.Pool(nproc) as pool:

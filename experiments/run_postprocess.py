@@ -64,12 +64,6 @@ def create_parser():
         help="Relax the structures using Rosetta FastRelax."
     )
 
-    parser.add_argument(
-        "--verbose",
-        action='store_true',
-        help="Enable verbose output of Amber and Rosetta relaxations."
-    )
-
     return parser
 
 
@@ -89,8 +83,7 @@ def main(args):
         xml=args.postprocess_xml_path,
         out_path=os.path.join(args.in_pdbs, 'postprocess_results.csv'),
         amber_relax=args.amber_relax,
-        rosetta_relax=args.rosetta_relax,
-        verbose=args.verbose,
+        rosetta_relax=args.rosetta_relax
     )
     print(f'Finished postprocessing of peptides.')
 

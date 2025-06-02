@@ -3,11 +3,19 @@ import shutil
 from analysis.amber_minimize import AmberRelaxation
 from Bio.PDB import *
 from pdbfixer import PDBFixer
+
+os.environ["ABSL_CPP_MIN_LOG_LEVEL"] = "2"
+try:
+    from absl import logging as absl_logging
+    absl_logging.set_verbosity(absl_logging.ERROR)
+except ImportError:
+    pass
+
 from openmm.app import PDBFile
-from absl.logging import logging as absl_logging
 from analysis.postprocess_utils import PCLIO
 from analysis.utils import write_from_string
-import pyrosetta
+from pyrosetta import init, pose_from_pdb
+from pyrosetta.rosetta.protocols.rosetta_scripts import RosettaScriptsParser
 
 
 RELAX_MAX_ITERATIONS = 0
@@ -56,8 +64,7 @@ class Postprocess:
         out_dir: str,
         xml=None,
         amber_relax=True,
-        rosetta_relax=True,
-        verbose=False
+        rosetta_relax=True
     ):
         self.pdb_file = pdb_file
         self.lig_chain_id = lig_chain_id
@@ -79,26 +86,6 @@ class Postprocess:
         self.xml = xml
         self.amber_relax = amber_relax
         self.rosetta_relax = rosetta_relax
-
-        if not verbose:
-            # Silence Abseil’s C++ logger except for WARNING and above
-            os.environ["ABSL_CPP_MIN_LOG_LEVEL"] = "1"
-            try:
-                absl_logging.set_verbosity(absl_logging.WARNING)
-            except Exception:
-                pass
-
-            # Mute PyRosetta
-            pyrosetta.init(
-                "-mute all "
-                f"-in:file:native {self.fixed_file} "
-                f"-parser:protocol {self.xml}"
-            )
-        else:
-            pyrosetta.init(
-                f"-in:file:native {self.fixed_file} "
-                f"-parser:protocol {self.xml}"
-            )
 
     def reconstruct(self):
         s_pcl = P.get_structure("s_pcl", self.pdb_file)[0]
@@ -125,9 +112,11 @@ class Postprocess:
         self.pdb_file = relaxed_file
         
     def interface_analyze(self):
-        from pyrosetta.rosetta.protocols.rosetta_scripts import RosettaScriptsParser
-        from pyrosetta import pose_from_pdb
-
+        init(
+            "-mute all "
+            f"-in:file:native {self.fixed_file} "
+            f"-parser:protocol {self.xml}"
+        )
         pose = pose_from_pdb(self.pdb_file)
         parser = RosettaScriptsParser()
         mover = parser.generate_mover(self.xml)

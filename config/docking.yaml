@@ -36,4 +36,3 @@ postprocess:
   rosetta_relax: True
   xml_path: ${oc.env:BASE_PATH}/analysis/interface_analyze.xml
   ori_pdbs: ${oc.env:BASE_PATH}/../test_case
-  verbose: False
