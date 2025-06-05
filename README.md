@@ -127,6 +127,15 @@ torchrun --nproc-per-node=8 experiments/run_docking.py data.val_csv_path=data/do
 
 The config file `config/docking.yaml` contains the hyperparameters for both the docking and postprocessing procedures. You can modify these hyperparameters to customize the overall workflow. Upon completion of the inference script, the generated protein-peptide complexes will be saved in the `runs/docking/` directory.
 
+To improve efficiency, the automatic postprocessing step can be skipped by setting `postprocess.run_postprocess` to False in `config/docking.yaml`. Postprocessing can then be executed separately with improved parallelization using the following command:
+
+```bash
+export BASE_PATH="your/path/to/DiffPepBuilder"
+python experiments/run_postprocess.py --in_pdbs runs/docking --ori_pdbs examples/docking_data --amber_relax --rosetta_relax
+```
+
+This script generates the final protein-peptide complexes and computes the binding ddG values as a pose scoring metric. The results are summarized in the `runs/docking/postprocess_results.csv` file.
+
 ## Training
 To train the DiffPepBuilder model from scratch, please download the training data from [Zenodo](https://zenodo.org/records/13744959) and unzip the data in the `data/` directory:
 
