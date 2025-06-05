@@ -183,10 +183,10 @@ def postprocess_metric(
         os.makedirs(out_dir, exist_ok=True)
     try:
         postprocess = Postprocess(
-            pdb_file,
-            lig_chain_id,
-            out_dir,
-            ori_dir,
+            pdb_file=pdb_file,
+            lig_chain_id=lig_chain_id,
+            ori_dir=ori_dir,
+            out_dir=out_dir,
             xml=xml,
             amber_relax=amber_relax,
             rosetta_relax=rosetta_relax
@@ -217,7 +217,7 @@ def postprocess_metric_parallel(
     for pdb_file, lig_chain_id in zip(files, lig_chain_ids):
         out_dir = os.path.dirname(pdb_file)
         args_list.append((pdb_file, ori_dir, out_dir, lig_chain_id, xml, amber_relax, rosetta_relax))
-        score_files.add(os.path.join(out_dir, "postprocess_outputs", "interf_score.sc"))
+        score_files.add(os.path.join(out_dir, "postprocess_results", "rosetta_score.sc"))
 
     with mp.Pool(nproc) as pool:
         pool.starmap(postprocess_metric, args_list)

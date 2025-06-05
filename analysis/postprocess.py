@@ -14,8 +14,9 @@ except ImportError:
 from openmm.app import PDBFile
 from analysis.postprocess_utils import PCLIO
 from analysis.utils import write_from_string
-from pyrosetta import init, pose_from_pdb
+from pyrosetta import init, pose_from_pdb, get_fa_scorefxn
 from pyrosetta.rosetta.protocols.rosetta_scripts import RosettaScriptsParser
+from pyrosetta.toolbox import py_jobdistributor as jd
 
 
 RELAX_MAX_ITERATIONS = 0
@@ -110,20 +111,33 @@ class Postprocess:
         relaxed_file = os.path.join(self.postprocess_dir, f"{self.data_id}_amber_relaxed.pdb")
         write_from_string(self.pdb_string_relaxed, relaxed_file)
         self.pdb_file = relaxed_file
-        
+
     def interface_analyze(self):
         init(
             "-mute all "
+            "-ignore_zero_occupancy false "
             f"-in:file:native {self.fixed_file} "
             f"-parser:protocol {self.xml}"
         )
+
         pose = pose_from_pdb(self.pdb_file)
-        parser = RosettaScriptsParser()
-        mover = parser.generate_mover(self.xml)
+        mover = RosettaScriptsParser().generate_mover(self.xml)
         mover.apply(pose)
         relaxed_file = os.path.join(self.postprocess_dir, f"{self.data_id}_rosetta_relaxed.pdb")
         pose.dump_pdb(relaxed_file)
         self.pdb_file = relaxed_file
+
+        scorefxn  = get_fa_scorefxn()
+        scorefxn(pose)
+        jd.output_scorefile(
+            pose=pose,
+            pdb_name=self.ori_file.replace(".pdb", ""),
+            current_name=self.data_id,
+            scorefxn=scorefxn,
+            nstruct=1,
+            scorefilepath=os.path.join(self.postprocess_dir, "rosetta_score.sc"),
+            json_format=True
+        )
 
     def __call__(self):
         try:

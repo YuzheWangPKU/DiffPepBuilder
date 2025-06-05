@@ -85,7 +85,7 @@ def main(args):
         amber_relax=args.amber_relax,
         rosetta_relax=args.rosetta_relax
     )
-    print(f'Finished postprocessing of peptides.')
+    print(f'Finished postprocessing of {len(test_files)} peptides.')
 
 
 if __name__ == '__main__':
