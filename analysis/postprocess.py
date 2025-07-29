@@ -79,15 +79,34 @@ class Postprocess:
         self.data_id = os.path.splitext(os.path.basename(self.pdb_file))[0]
         self.recon_file = os.path.join(self.postprocess_dir, f"{self.data_id}_recon.pdb")
         self.fixed_file = os.path.join(self.postprocess_dir, f"{self.data_id}_fixed.pdb")
-
-        ori_pdb_name = self.data_id.split("_", 1)[0]
-        self.ori_file = os.path.join(self.ori_dir, f"{ori_pdb_name}.pdb")
-        if not os.path.exists(self.ori_file):
-            raise FileNotFoundError(f"Original PDB file not found: {self.ori_file}")
+        self.ori_file = self.find_ori_file()
         self.xml = xml
         self.amber_relax = amber_relax
         self.rosetta_relax = rosetta_relax
 
+    def find_ori_file(self):
+        """
+        Given self.data_id = e.g. "m_8F4G_2.03_fixed_nat_sample_28",
+        this will look for, in order:
+        m_8F4G_2.03_fixed_nat_sample_28.pdb
+        m_8F4G_2.03_fixed_nat_sample.pdb
+        m_8F4G_2.03_fixed_nat.pdb
+        m_8F4G_2.03_fixed.pdb   ←  finds this one
+        and stops as soon as it exists.
+        """
+        prefix = self.data_id
+        while True:
+            candidate = os.path.join(self.ori_dir, f"{prefix}.pdb")
+            if os.path.isfile(candidate):
+                return candidate
+            # if there's nothing left to strip, bail out
+            if "_" not in prefix:
+                break
+            # strip off the last “_…” segment and try again
+            prefix = prefix.rsplit("_", 1)[0]
+
+        raise FileNotFoundError(f"No original PDB matching '{self.data_id}' found in {self.ori_dir!r}")
+    
     def reconstruct(self):
         s_pcl = P.get_structure("s_pcl", self.pdb_file)[0]
         s_ori = P.get_structure("s_ori", self.ori_file)[0]
