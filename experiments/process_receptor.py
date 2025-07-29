@@ -99,7 +99,7 @@ def renumber_rec_chain(pdb_path, json_path, in_place=False):
     structure = parser.get_structure('', pdb_path)
     chain_ids = [chain.id for chain in structure[0]]
     
-    pdb_name = os.path.basename(pdb_path).replace('.pdb', '').replace('_receptor', '').lower()
+    pdb_name = os.path.basename(pdb_path).replace('.pdb', '')
     out_pdb_path = pdb_path if in_place else pdb_path.replace('.pdb', '_modified.pdb')
     out_json_path = json_path if in_place else json_path.replace('.json', '_modified.json')
     chain_id_map = {}
@@ -157,7 +157,7 @@ class resSelector(Select):
             return False
         else:
             return True
-        
+
 
 def get_rec_seq(entity, lch=None):
     aatype_rec, chain_id_rec = [], []
@@ -237,17 +237,17 @@ def get_motif_center_pos(infile:str, motif=None, hotspots=None, lig_chain_str=No
     return struct, center_pos, raw_seq_data
 
 
-def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
+def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10, receptor_info_path:str=None):
     """
     Process protein file into usable, smaller pickles.
     """
-    pdb_name = os.path.basename(file_path).replace('.pdb', '').replace('_receptor', '')
+    pdb_name = os.path.basename(file_path).replace('.pdb', '')
 
-    if args.receptor_info_path is not None:
-        motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
+    if receptor_info_path is not None:
+        motif_str, hotspots, lig_chain_str = read_receptor_info(receptor_info_path, pdb_name)
         if lig_chain_str != "A":
-            renumber_rec_chain(file_path, args.receptor_info_path, in_place=True)
-            motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
+            renumber_rec_chain(file_path, receptor_info_path, in_place=True)
+            motif_str, hotspots, lig_chain_str = read_receptor_info(receptor_info_path, pdb_name)
     else:
         motif_str, hotspots, lig_chain_str = None, None, None
 
@@ -321,7 +321,7 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10):
     return metadata, raw_seq_dict
 
 
-def process_serially(all_paths, write_dir, pocket_cutoff=10):
+def process_serially(all_paths, write_dir, pocket_cutoff=10, receptor_info_path=None):
     all_metadata = []
     all_raw_data = {}
 
@@ -331,7 +331,8 @@ def process_serially(all_paths, write_dir, pocket_cutoff=10):
             metadata, raw_seq_data = process_file(
                 file_path,
                 write_dir,
-                pocket_cutoff=pocket_cutoff
+                pocket_cutoff=pocket_cutoff,
+                receptor_info_path=receptor_info_path
             )
             elapsed_time = time.time() - start_time
             print(f'Finished {file_path} in {elapsed_time:2.2f}s')
@@ -353,7 +354,7 @@ def main(args):
                 print(f'Removed file: {file_path}')
             except OSError as e:
                 print(f'Error while deleting file {file_path}: {e}')
-                
+
     all_file_paths = [
         os.path.join(pdb_dir, x)
         for x in os.listdir(args.pdb_dir) if '.pdb' in x]
@@ -368,7 +369,8 @@ def main(args):
     all_metadata, all_raw_data = process_serially(
         all_file_paths,
         write_dir,
-        pocket_cutoff=args.pocket_cutoff
+        pocket_cutoff=args.pocket_cutoff,
+        receptor_info_path=args.receptor_info_path
     )
 
     metadata_df = pd.DataFrame(all_metadata)
@@ -393,5 +395,3 @@ if __name__ == "__main__":
     parser = create_parser()
     args = parser.parse_args()
     main(args)
-
-    

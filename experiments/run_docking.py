@@ -103,7 +103,7 @@ class BatchDockDataset(PdbDataset):
         csv_row = self.csv.iloc[idx]
 
         if 'pdb_name' in csv_row:
-            pdb_name = csv_row['pdb_name'].split('_', 1)[0]
+            pdb_name = csv_row['pdb_name']
         else:
             raise ValueError('Need receptor identifier.')
         

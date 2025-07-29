@@ -23,6 +23,8 @@ import numpy as np
 import warnings
 from tqdm import tqdm
 from Bio import SeqIO
+from Bio.PDB import PDBParser
+from Bio.PDB.Polypeptide import is_aa
 
 from data import utils as du
 from data import errors
@@ -61,7 +63,8 @@ def create_parser():
         "--peptide_seq_path",
         type=str,
         default=None,
-        help="Path to the FASTA file containing peptide sequences to be docked."
+        help="Path to the FASTA file containing peptide sequences to be docked. " \
+        "If not provided, the script will use the ligand chain from the PDB file."
     )
 
     parser.add_argument(
@@ -70,7 +73,7 @@ def create_parser():
         type=int,
         default=32
     )
-    
+
     parser.add_argument(
         '--pocket_cutoff',
         help='Cutoff for pocket residues.',
@@ -98,25 +101,46 @@ def read_peptide_seq(peptide_seq_path: str):
     return peptide_seq_dict
 
 
-def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cutoff: int = 10):
+def extract_lig_seq(pdb_file: str, chain_id: str) -> str:
+    """
+    Parse the PDB and return the one-letter sequence of chain `chain_id`.
+    """
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure('PDB', pdb_file)
+    model = structure[0]
+    if chain_id not in model:
+        raise ValueError(f"Chain {chain_id!r} not found in {pdb_file}")
+    seq = []
+    for res in model[chain_id]:
+        if is_aa(res, standard=True):
+            seq.append(residue_constants.restype_3to1.get(res.resname, 'X'))
+
+    return ''.join(seq)
+
+
+def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cutoff: int = 10, receptor_info_path: str = None):
     """
     Process protein file into usable, smaller pickles.
     """
-    pdb_name = os.path.basename(file_path).replace('.pdb', '').replace('_receptor', '')
+    pdb_name = os.path.basename(file_path).replace('.pdb', '')
 
-    if args.receptor_info_path is not None:
-        motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
+    if receptor_info_path is not None:
+        motif_str, hotspots, lig_chain_str = read_receptor_info(receptor_info_path, pdb_name)
         if lig_chain_str != "A":
-            renumber_rec_chain(file_path, args.receptor_info_path, in_place=True)
-            motif_str, hotspots, lig_chain_str = read_receptor_info(args.receptor_info_path, pdb_name)
+            renumber_rec_chain(file_path, receptor_info_path, in_place=True)
+            motif_str, hotspots, lig_chain_str = read_receptor_info(receptor_info_path, pdb_name)
     else:
         motif_str, hotspots, lig_chain_str = None, None, None
 
     if lig_chain_str:
+        lig_chain_seq = extract_lig_seq(file_path, lig_chain_str)
         if motif_str or hotspots:
             warnings.warn(f"Find both reference ligand chain and motif / hotspots for {pdb_name}. "
                         f"The reference ligand {lig_chain_str} will be used in priority.")
     else:
+        if peptide_dict is None:
+            raise errors.DataError(f"No ligand chain or peptide sequences provided for {pdb_name}. "
+                                   f"Please provide at least one of them.")
         if hotspots:
             hotspots = hotspots.split('-')
             if motif_str:
@@ -167,6 +191,10 @@ def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cuto
 
     # Pair with peptide sequences
     all_metadata, all_raw_seq_data = [], {}
+
+    if peptide_dict is None:
+        peptide_dict = {"nat": lig_chain_seq}
+
     for peptide_id, peptide_seq in peptide_dict.items():
         for res in peptide_seq:
             if res not in residue_constants.restypes:
@@ -193,7 +221,7 @@ def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cuto
     return all_metadata, all_raw_seq_data
 
 
-def process_serially(all_paths, write_dir, peptide_dict, pocket_cutoff = 10):
+def process_serially(all_paths, write_dir, peptide_dict, pocket_cutoff=10, receptor_info_path=None):
     final_metadata = []
     final_raw_data = {}
 
@@ -204,7 +232,8 @@ def process_serially(all_paths, write_dir, peptide_dict, pocket_cutoff = 10):
                 file_path,
                 write_dir,
                 peptide_dict,
-                pocket_cutoff=pocket_cutoff
+                pocket_cutoff=pocket_cutoff,
+                receptor_info_path=receptor_info_path
             )
             elapsed_time = time.time() - start_time
             print(f'Finished {file_path} in {elapsed_time:2.2f}s')
@@ -238,18 +267,24 @@ def main(args):
     metadata_path = os.path.join(write_dir, metadata_file_name)
     print(f'Files will be written to {write_dir}')
 
-    peptide_dict = read_peptide_seq(args.peptide_seq_path)
+    if args.peptide_seq_path is not None:
+        peptide_dict = read_peptide_seq(args.peptide_seq_path)
+    else:
+        peptide_dict = None
+
     all_metadata, all_raw_data = process_serially(
         all_file_paths,
         write_dir,
         peptide_dict,
-        pocket_cutoff=args.pocket_cutoff
+        pocket_cutoff=args.pocket_cutoff,
+        receptor_info_path=args.receptor_info_path
     )
 
     metadata_df = pd.DataFrame(all_metadata)
     metadata_df.to_csv(metadata_path, index=False)
-    succeeded = len(all_metadata)
-    print(f'Finished processing {succeeded}/{total_num_paths * len(peptide_dict)} files. Start ESM embedding...')
+    num_succeeded = len(all_metadata)
+    total_num_files = total_num_paths * len(peptide_dict) if peptide_dict else total_num_paths
+    print(f'Finished processing {num_succeeded}/{total_num_files} files. Start ESM embedding...')
 
     # Embed sequences with pretrained ESM
     esm_embedder = PretrainedSequenceEmbedder(max_batch_size=args.max_batch_size)
