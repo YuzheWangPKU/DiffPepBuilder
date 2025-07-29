@@ -118,7 +118,9 @@ To preprocess the target and the peptide sequences, run the `experiments/process
 python experiments/process_batch_dock.py --pdb_dir examples/docking_data --write_dir data/docking_data --receptor_info_path examples/docking_data/docking_cases.json --peptide_seq_path examples/docking_data/peptide_seq.fasta
 ```
 
-The preprocessed data will be placed in the `data/docking_data` directory. To perform protein-peptide docking, please specify the root directory of DiffPepBuilder repository and then run the `experiments/run_docking.py` script (please modify the `nproc-per-node` flag accordingly based on the number of GPUs available):
+The preprocessed data will be placed in the `data/docking_data` directory. Redocking of existing protein–peptide complexes can be performed by omitting the `peptide_seq_path` argument and specify the peptide ligand chain in the `docking_cases.json` file.
+
+To perform protein-peptide docking, please specify the root directory of DiffPepBuilder repository and then run the `experiments/run_docking.py` script (please modify the `nproc-per-node` flag accordingly based on the number of GPUs available):
 
 ```bash
 export BASE_PATH="your/path/to/DiffPepBuilder"
@@ -127,7 +129,7 @@ torchrun --nproc-per-node=8 experiments/run_docking.py data.val_csv_path=data/do
 
 The config file `config/docking.yaml` contains the hyperparameters for both the docking and postprocessing procedures. You can modify these hyperparameters to customize the overall workflow. Upon completion of the inference script, the generated protein-peptide complexes will be saved in the `runs/docking/` directory.
 
-To improve efficiency, the automatic postprocessing step can be skipped by setting `postprocess.run_postprocess` to False in `config/docking.yaml`. Postprocessing can then be executed separately with improved parallelization using the following command:
+To improve efficiency, the automatic postprocessing step can be skipped by setting `postprocess.run_postprocess` to `False` in `config/docking.yaml`. Postprocessing can then be executed separately with improved parallelization using the following command:
 
 ```bash
 export BASE_PATH="your/path/to/DiffPepBuilder"
