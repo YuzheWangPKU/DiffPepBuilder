@@ -130,6 +130,7 @@ def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cuto
             renumber_rec_chain(file_path, receptor_info_path, in_place=True)
             motif_str, hotspots, lig_chain_str = read_receptor_info(receptor_info_path, pdb_name)
     else:
+        renumber_rec_chain(file_path, in_place=True)
         motif_str, hotspots, lig_chain_str = None, None, None
 
     if lig_chain_str:

@@ -91,7 +91,7 @@ def read_receptor_info(json_path, receptor_name):
     return motif, hotspots, lig_chain
 
 
-def renumber_rec_chain(pdb_path, json_path, in_place=False):
+def renumber_rec_chain(pdb_path, json_path=None, in_place=False):
     """
     Re-number the receptor chain IDs for compatibility. Optionally save the modified files (PDB and JSON) in-place.
     """
@@ -101,7 +101,6 @@ def renumber_rec_chain(pdb_path, json_path, in_place=False):
     
     pdb_name = os.path.basename(pdb_path).replace('.pdb', '')
     out_pdb_path = pdb_path if in_place else pdb_path.replace('.pdb', '_modified.pdb')
-    out_json_path = json_path if in_place else json_path.replace('.json', '_modified.json')
     chain_id_map = {}
 
     if 'A' in chain_ids:
@@ -124,21 +123,23 @@ def renumber_rec_chain(pdb_path, json_path, in_place=False):
         io.save(out_pdb_path)
 
         # JSON update
-        with open(json_path, 'r') as json_file:
-            json_data = json.load(json_file)
-        json_data_lower = {k.lower(): v for k, v in json_data.items()}
-        if pdb_name in json_data_lower:
-            receptor_data = json_data_lower[pdb_name]
-            for key in ['motif', 'hotspots']:
-                if key in receptor_data:
-                    items = receptor_data[key].split('-')
-                    updated_items = ['-'.join(chain_id_map.get(item[0], item[0]) + item[1:] for item in items)]
-                    receptor_data[key] = ''.join(updated_items)
-            if 'lig_chain' in receptor_data:
-                prev_lig_chain = receptor_data['lig_chain']
-                receptor_data['lig_chain'] = chain_id_map.get(prev_lig_chain, prev_lig_chain)
-            with open(out_json_path, 'w') as updated_json_file:
-                json.dump(json_data, updated_json_file, indent=4)
+        if json_path is not None:
+            out_json_path = json_path if in_place else json_path.replace('.json', '_modified.json')
+            with open(json_path, 'r') as json_file:
+                json_data = json.load(json_file)
+            json_data_lower = {k.lower(): v for k, v in json_data.items()}
+            if pdb_name in json_data_lower:
+                receptor_data = json_data_lower[pdb_name]
+                for key in ['motif', 'hotspots']:
+                    if key in receptor_data:
+                        items = receptor_data[key].split('-')
+                        updated_items = ['-'.join(chain_id_map.get(item[0], item[0]) + item[1:] for item in items)]
+                        receptor_data[key] = ''.join(updated_items)
+                if 'lig_chain' in receptor_data:
+                    prev_lig_chain = receptor_data['lig_chain']
+                    receptor_data['lig_chain'] = chain_id_map.get(prev_lig_chain, prev_lig_chain)
+                with open(out_json_path, 'w') as updated_json_file:
+                    json.dump(json_data, updated_json_file, indent=4)
 
 
 def resid_unique(res):
