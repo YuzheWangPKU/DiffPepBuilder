@@ -75,6 +75,13 @@ def create_parser():
     )
 
     parser.add_argument(
+        '--hotspot_cutoff',
+        help='Cutoff for hotspot residues.',
+        type=int,
+        default=8
+    )
+
+    parser.add_argument(
         '--pocket_cutoff',
         help='Cutoff for pocket residues.',
         type=int,
@@ -118,7 +125,7 @@ def extract_lig_seq(pdb_file: str, chain_id: str) -> str:
     return ''.join(seq)
 
 
-def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cutoff: int = 10, receptor_info_path: str = None):
+def process_file(file_path:str, write_dir:str, peptide_dict:dict, hotspot_cutoff:float=8, pocket_cutoff:float=10, receptor_info_path:str=None):
     """
     Process protein file into usable, smaller pickles.
     """
@@ -151,7 +158,7 @@ def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cuto
             motif_str = motif_str.split('-')
 
     try:
-        structure, center_pos, receptor_raw_seq = get_motif_center_pos(file_path, motif_str, hotspots, lig_chain_str, pocket_cutoff)
+        structure, center_pos, receptor_raw_seq = get_motif_center_pos(file_path, motif_str, hotspots, lig_chain_str, hotspot_cutoff, pocket_cutoff)
     except Exception as e:
         print(f'Failed to parse {pdb_name} with error {e}')
         return None, None
@@ -222,7 +229,7 @@ def process_file(file_path: str, write_dir: str, peptide_dict: dict, pocket_cuto
     return all_metadata, all_raw_seq_data
 
 
-def process_serially(all_paths, write_dir, peptide_dict, pocket_cutoff=10, receptor_info_path=None):
+def process_serially(all_paths, write_dir, peptide_dict, hotspot_cutoff=8, pocket_cutoff=10, receptor_info_path=None):
     final_metadata = []
     final_raw_data = {}
 
@@ -233,6 +240,7 @@ def process_serially(all_paths, write_dir, peptide_dict, pocket_cutoff=10, recep
                 file_path,
                 write_dir,
                 peptide_dict,
+                hotspot_cutoff=hotspot_cutoff,
                 pocket_cutoff=pocket_cutoff,
                 receptor_info_path=receptor_info_path
             )
@@ -277,6 +285,7 @@ def main(args):
         all_file_paths,
         write_dir,
         peptide_dict,
+        hotspot_cutoff=args.hotspot_cutoff,
         pocket_cutoff=args.pocket_cutoff,
         receptor_info_path=args.receptor_info_path
     )

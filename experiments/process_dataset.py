@@ -49,13 +49,6 @@ def create_parser():
     )
 
     parser.add_argument(
-        '--num_processes',
-        help='Number of processes.',
-        type=int,
-        default=16
-    )
-
-    parser.add_argument(
         '--write_dir',
         help='Path to write results to.',
         type=str,
@@ -81,6 +74,13 @@ def create_parser():
         help='Maximum batch size for ESM embedding.',
         type=int,
         default=32
+    )
+
+    parser.add_argument(
+        '--num_processes',
+        help='Number of processes.',
+        type=int,
+        default=16
     )
 
     return parser
@@ -279,15 +279,13 @@ def get_motif_center_pos(infile:str, lig_chain:str, hotspot_cutoff=8, pocket_cut
     return struct, center_pos, raw_seq_data
 
 
-def process_file(file_path:str, write_dir:str, lig_chain_str:str='A', hotspot_cutoff:int=8, pocket_cutoff:int=10):
+def process_file(file_path:str, write_dir:str, lig_chain_str:str='A', hotspot_cutoff:float=8, pocket_cutoff:float=10):
     """
     Processes protein file into usable, smaller pickles.
 
     Args:
         file_path: Path to file to read.
         write_dir: Directory to write pickles to.
-        motif_str: 'A1-A2-A3-... -B4-...'
-        hotspots: 'A1-A2-A3-... -B4-...'
         lig_chain_str: 'A'
 
     Returns:

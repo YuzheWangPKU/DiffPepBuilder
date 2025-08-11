@@ -63,7 +63,14 @@ def create_parser():
         type=int,
         default=32
     )
-    
+
+    parser.add_argument(
+        '--hotspot_cutoff',
+        help='Cutoff for hotspot residues.',
+        type=int,
+        default=8
+    )
+
     parser.add_argument(
         '--pocket_cutoff',
         help='Cutoff for pocket residues.',
@@ -179,7 +186,7 @@ def get_rec_seq(entity, lch=None):
     return aatype_rec, mask_rec, chain_id_rec
 
 
-def get_motif_center_pos(infile:str, motif=None, hotspots=None, lig_chain_str=None, pocket_cutoff=10):
+def get_motif_center_pos(infile:str, motif=None, hotspots=None, lig_chain_str=None, hotspot_cutoff=8, pocket_cutoff=10):
     p = PDB.PDBParser(QUIET=1)
     struct = p.get_structure('', infile)[0]
     out_motif_file = infile.replace('.pdb', '_processed.pdb')
@@ -193,7 +200,7 @@ def get_motif_center_pos(infile:str, motif=None, hotspots=None, lig_chain_str=No
         ref_coords_ca = []
         for i in lig_coords_ca:
             for k, j in enumerate(rec_residues):
-                if np.linalg.norm(j['CA'].coord - i) <= 8:
+                if np.linalg.norm(j['CA'].coord - i) <= hotspot_cutoff:
                     ref_coords_ca.append(j['CA'].coord)
     elif hotspots:
         io = PDB.PDBIO()
@@ -238,7 +245,7 @@ def get_motif_center_pos(infile:str, motif=None, hotspots=None, lig_chain_str=No
     return struct, center_pos, raw_seq_data
 
 
-def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10, receptor_info_path:str=None):
+def process_file(file_path:str, write_dir:str, hotspot_cutoff:float=8, pocket_cutoff:float=10, receptor_info_path:str=None):
     """
     Process protein file into usable, smaller pickles.
     """
@@ -271,7 +278,7 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10, receptor_in
     metadata['processed_path'] = os.path.abspath(processed_path)
 
     try:
-        structure, center_pos, raw_seq_data = get_motif_center_pos(file_path, motif_str, hotspots, lig_chain_str, pocket_cutoff)
+        structure, center_pos, raw_seq_data = get_motif_center_pos(file_path, motif_str, hotspots, lig_chain_str, hotspot_cutoff, pocket_cutoff)
         raw_seq_dict = {pdb_name: raw_seq_data}
     except Exception as e:
         print(f'Failed to parse {pdb_name} with error {e}')
@@ -322,7 +329,7 @@ def process_file(file_path:str, write_dir:str, pocket_cutoff:int=10, receptor_in
     return metadata, raw_seq_dict
 
 
-def process_serially(all_paths, write_dir, pocket_cutoff=10, receptor_info_path=None):
+def process_serially(all_paths, write_dir, hotspot_cutoff=8, pocket_cutoff=10, receptor_info_path=None):
     all_metadata = []
     all_raw_data = {}
 
@@ -332,6 +339,7 @@ def process_serially(all_paths, write_dir, pocket_cutoff=10, receptor_info_path=
             metadata, raw_seq_data = process_file(
                 file_path,
                 write_dir,
+                hotspot_cutoff=hotspot_cutoff,
                 pocket_cutoff=pocket_cutoff,
                 receptor_info_path=receptor_info_path
             )
@@ -370,6 +378,7 @@ def main(args):
     all_metadata, all_raw_data = process_serially(
         all_file_paths,
         write_dir,
+        hotspot_cutoff=args.hotspot_cutoff,
         pocket_cutoff=args.pocket_cutoff,
         receptor_info_path=args.receptor_info_path
     )
