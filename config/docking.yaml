@@ -18,7 +18,7 @@ data:
 experiment:
   name: docking
   
-  eval_batch_size: ${data.num_repeat_per_eval_sample}
+  eval_batch_size: 128  # Batch size per GPU.
   num_loader_workers: 4
   use_ddp : True
   use_gpu: True

@@ -409,7 +409,9 @@ def create_data_loader(
         max_squared_res=1e6,
         length_batch=False,
         drop_last=False,
-        prefetch_factor=2):
+        prefetch_factor=2,
+        batch_sampler=None,
+    ):
     """Creates a data loader with jax compatible data structures."""
     if np_collate:
         collate_fn = lambda x: concat_np_features(x, add_batch_dim=True)
@@ -420,6 +422,18 @@ def create_data_loader(
         collate_fn = None
     persistent_workers = True if num_workers > 0 else False
     prefetch_factor = 2 if num_workers == 0 else prefetch_factor
+
+    if batch_sampler is not None:
+        return data.DataLoader(
+            torch_dataset,
+            batch_sampler=batch_sampler,
+            collate_fn=collate_fn,
+            num_workers=num_workers,
+            prefetch_factor=prefetch_factor,
+            persistent_workers=persistent_workers,
+            multiprocessing_context='fork' if num_workers != 0 else None,
+        )
+    
     return data.DataLoader(
         torch_dataset,
         sampler=sampler,

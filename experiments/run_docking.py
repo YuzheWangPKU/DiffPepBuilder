@@ -18,6 +18,7 @@ import tree
 import numpy as np
 import hydra
 import torch
+from collections import defaultdict
 
 from torch.nn import DataParallel as DP
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -29,7 +30,7 @@ from openfold.utils import rigid_utils
 from analysis import utils as au
 from analysis.postprocess import Postprocess
 from data import utils as du
-from data import pdb_data_loader, residue_constants
+from data import residue_constants
 from data.pdb_data_loader import PdbDataset
 from experiments.train import Experiment
 from experiments.utils import save_traj
@@ -161,6 +162,70 @@ class BatchDockDataset(PdbDataset):
         return final_feats, pdb_name, peptide_id
 
 
+class EvalRepeatLengthSampler(torch.utils.data.Sampler):
+    """
+    Yields batches (lists of indices) such that:
+      - each batch contains items of a single modeled_seq_len;
+      - each target index appears num_repeat consecutive times;
+      - DDP shards targets across ranks (disjoint ownership);
+      - supports single-GPU and DP (loader_batch_size controls total per-process batch).
+    """
+    def __init__(self, *, dataset, num_repeat: int, batch_size: int,
+                 world_size: int = 1, rank: int = 0, shuffle: bool = False):
+        self.dataset = dataset
+        self.csv = getattr(dataset, 'csv', None)
+        assert self.csv is not None, "Dataset must expose a .csv DataFrame"
+        self.num_repeat = int(num_repeat)
+        self.batch_size = int(batch_size)
+        self.world_size = int(world_size)
+        self.rank = int(rank)
+        self.shuffle = bool(shuffle)
+
+        # Build length bins (fallback to single bin if column absent)
+        if 'modeled_seq_len' in self.csv.columns:
+            by_len = {}
+            for idx in range(len(self.csv)):
+                L = int(self.csv.iloc[idx]['modeled_seq_len'])
+                by_len.setdefault(L, []).append(idx)
+        else:
+            by_len = {0: list(range(len(self.csv)))}
+
+        # Optional deterministic shuffle within each bin
+        if self.shuffle:
+            import random
+            rng = random.Random(0)
+            for L in by_len: rng.shuffle(by_len[L])
+
+        # DDP rank sharding per bin
+        for L, lst in by_len.items():
+            by_len[L] = [lst[i] for i in range(self.rank, len(lst), self.world_size)]
+
+        # Precompute batches: never cross bins
+        batches = []
+        for L in sorted(by_len.keys()):
+            # Expand repeats, keeping repeats consecutive
+            stream = []
+            for idx in by_len[L]:
+                stream.extend([idx] * self.num_repeat)
+
+            # Cut into batches of size batch_size, last may be smaller
+            p = 0
+            N = len(stream)
+            while p < N:
+                q = min(p + self.batch_size, N)
+                batches.append(stream[p:q])
+                p = q
+
+        self._batches = batches
+
+    def __iter__(self):
+        for b in self._batches:
+            yield b
+
+    def __len__(self):
+        return len(self._batches)
+    
+
 class Sampler(Experiment):
 
     def __init__(
@@ -223,34 +288,55 @@ class Sampler(Experiment):
             data_conf=self._data_conf,
             diffuser=self._diffuser
         )
-        if not self._use_ddp:
-            test_sampler = pdb_data_loader.TrainSampler(
-                data_conf=self._data_conf,
-                dataset=test_dataset,
-                batch_size=self._exp_conf.eval_batch_size,
-                sample_mode=self._exp_conf.sample_mode
+
+        per_gpu_bs = self._exp_conf.eval_batch_size
+        num_repeat = self._data_conf.get("num_repeat_per_eval_sample", 1)
+
+        # Scenario (1): enforce clean per-GPU boundaries for repeats
+        if num_repeat > per_gpu_bs:
+            assert (num_repeat % per_gpu_bs) == 0, (
+                f"When num_repeat_per_eval_sample ({num_repeat}) > per-GPU eval_batch_size ({per_gpu_bs}), "
+                f"num_repeat_per_eval_sample must be divisible by eval_batch_size to avoid cross-target mixing within a GPU micro-batch."
             )
+
+        # DDP topology (decouple ranks)
+        if self._use_ddp:
+            world_size = int(self.ddp_info['world_size'])
+            rank = int(self.ddp_info['rank'])
         else:
-            test_sampler = pdb_data_loader.DistributedTrainSampler(
-                data_conf=self._data_conf,
-                dataset=test_dataset,
-                batch_size=self._exp_conf.eval_batch_size,
-                shuffle=False
-            )
+            world_size, rank = 1, 0
+
+        # Loader batch-size choice
+        if torch.cuda.is_available() and self._exp_conf.use_gpu and self._exp_conf.num_gpus > 1 and not self._use_ddp:
+            loader_batch_size = per_gpu_bs * self._exp_conf.num_gpus
+        else:
+            loader_batch_size = per_gpu_bs
+
+        eval_batch_sampler = EvalRepeatLengthSampler(
+            dataset=test_dataset,
+            num_repeat=num_repeat,
+            batch_size=loader_batch_size,
+            world_size=world_size,
+            rank=rank,
+            shuffle=False
+        )
+
         num_workers = self._exp_conf.num_loader_workers
         test_loader = du.create_data_loader(
             test_dataset,
-            sampler=test_sampler,
-            np_collate=False,
-            length_batch=False,
-            batch_size=self._exp_conf.eval_batch_size if not self._use_ddp else self._exp_conf.eval_batch_size // self.ddp_info['world_size'],
+            sampler=None,
+            batch_size=None,
             shuffle=False,
             num_workers=num_workers,
-            drop_last=False
+            np_collate=False,
+            length_batch=False,
+            drop_last=False,
+            batch_sampler=eval_batch_sampler
         )
 
         start_time = time.time()
         test_dir = self._exp_conf.eval_dir
+        per_target_sample_ctr = defaultdict(int)
 
         for test_feats, pdb_names, peptide_ids in test_loader:
             res_mask = du.move_to_np(test_feats['res_mask'].bool())
@@ -289,7 +375,10 @@ class Sampler(Experiment):
                     f'{peptide_id}'
                 )
                 os.makedirs(peptide_seq_dir, exist_ok=True)
-                sample_id = i + self.ddp_info['local_rank'] * batch_size if self._use_ddp else i
+
+                sample_id = per_target_sample_ctr[(pdb_name, peptide_id)]
+                per_target_sample_ctr[(pdb_name, peptide_id)] += 1
+
                 pdb_sampled = os.path.join(
                     peptide_seq_dir, 
                     f'{pdb_name}_{peptide_id}_sample_{sample_id}.pdb'
