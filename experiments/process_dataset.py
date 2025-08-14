@@ -13,8 +13,6 @@ root = pyrootutils.setup_root(
 )
 
 import os
-import wget
-import copy
 import argparse
 import dataclasses
 import pandas as pd
@@ -24,17 +22,13 @@ import multiprocessing as mp
 import functools as fn
 from tqdm import tqdm
 from Bio import PDB
-from Bio.PDB import Select
-import esm
-
-import torch
 from torch import nn as nn
-from torch.utils.data import DataLoader
 
 from data import utils as du
 from data import errors
 from data import parsers
 from data import residue_constants
+from experiments.preprocess_utils import PretrainedSequenceEmbedder, resid_unique, ResSelector
 
 
 def create_parser():
@@ -86,122 +80,7 @@ def create_parser():
     return parser
 
 
-class PretrainedSequenceEmbedder(nn.Module):
-    """
-    Pretrained protein sequence encoder from ESM (Frozen, default esm2_t33_650M_UR50D).
-    Protein sequence representations are pre-calculated and saved.
-    """
-    huggingface_card = {
-        "esm2_t48_15B_UR50D": "facebook/esm2_t48_15B_UR50D",
-        "esm2_t36_3B_UR50D": "facebook/esm2_t36_3B_UR50D",
-        "esm2_t33_650M_UR50D": "facebook/esm2_t33_650M_UR50D",
-        "esm1b_t33_650M_UR50S": "facebook/esm1b_t33_650M_UR50S"
-    }
-
-    def __init__(
-            self,
-            model_name: str = "esm2_t33_650M_UR50D",
-            checkpoint_dir: str = f"{root}/experiments/checkpoints",
-            truncation_seq_length: int = 2046,
-            max_batch_size: int = 16
-    ):
-        super(PretrainedSequenceEmbedder, self).__init__()
-        self.truncation_seq_length = truncation_seq_length
-        self.max_batch_size = max_batch_size
-
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model, self.alphabet = self._build_from_local_checkpoint(model_name, checkpoint_dir)
-        self.model.eval()
-
-
-    def _build_from_local_checkpoint(self, model_name: str, checkpoint_dir: str):
-        """
-        Build model from local checkpoint.
-
-        Enable CPU offloading with FSDP.
-        Adapted from: https://github.com/facebookresearch/esm/blob/main/examples/esm2_infer_fairscale_fsdp_cpu_offloading.py
-        """
-        if not os.path.exists(checkpoint_dir):
-            os.makedirs(checkpoint_dir)
-
-        if model_name not in self.huggingface_card:
-            raise NotImplementedError(f"Model {model_name} not implemented")
-        
-        model_path = os.path.join(checkpoint_dir, f"{model_name}.pt")
-        regression_path = os.path.join(checkpoint_dir, f"{model_name}-contact-regression.pt")
-
-        if not os.path.isfile(model_path):
-            print(f"Model file {model_path} not found. Downloading...")
-            wget.download(f"https://dl.fbaipublicfiles.com/fair-esm/models/{model_name}.pt", out=model_path)
-
-        if not os.path.isfile(regression_path):
-            print(f"Model file {regression_path} not found. Downloading...")
-            wget.download(f"https://dl.fbaipublicfiles.com/fair-esm/regression/{model_name}-contact-regression.pt", out=regression_path)
-        
-        try:
-            model, alphabet = esm.pretrained.load_model_and_alphabet(model_path)
-        except Exception:
-            with torch.serialization.safe_globals([argparse.Namespace]):
-                model, alphabet = esm.pretrained.load_model_and_alphabet(model_path)
-        
-        model.to(self.device)
-
-        return model, alphabet
-
-
-    def forward(self, raw_data: dict):
-        """
-        Compute embeddings of protein sequences.
-        Modified from: https://github.com/facebookresearch/esm/blob/main/scripts/extract.py
-        """
-        labels, sequences = [], []
-        raw_data = copy.deepcopy(raw_data)
-
-        for pdb_name, pdb_data in raw_data.items():
-            for chain_id, seq_data in pdb_data.items():
-                labels.append((pdb_name, chain_id))
-                sequences.append(seq_data["seq"])
-
-        dataset = [(label, seq) for label, seq in zip(labels, sequences)]
-        batch_converter = self.alphabet.get_batch_converter(self.truncation_seq_length)
-        data_loader = DataLoader(
-            dataset, batch_size=self.max_batch_size, collate_fn=batch_converter, shuffle=False
-        )
-        print(f"Read sequence data with {len(dataset)} sequences")
-
-        with torch.no_grad():
-            for batch_idx, (labels, strs, toks) in enumerate(tqdm(data_loader, desc="Processing protein sequence batches")):
-                print(
-                    f"Processing {batch_idx + 1} of {1 + len(dataset) // self.max_batch_size} batches ({toks.size(0)} sequences)"
-                )
-                toks = toks.to(self.device, non_blocking=True)
-                repr_layers_num = self.model.num_layers
-
-                results = self.model(toks, repr_layers=[repr_layers_num])
-                representations = results["representations"][repr_layers_num].to("cpu")
-
-                for i, (pdb_name, chain_id) in enumerate(labels):
-                    mask = torch.tensor(raw_data[pdb_name][chain_id]["mask"]).to("cpu")
-                    truncate_len = min(self.truncation_seq_length, mask.shape[0])
-                    # Call clone on tensors to ensure tensors are not views into a larger representation
-                    # See https://github.com/pytorch/pytorch/issues/1995
-                    raw_data[pdb_name][chain_id]["esm_embed"] = representations[i, 1 : truncate_len + 1][mask[: truncate_len].bool()].clone()
-
-            concat_embs = {}
-            for pdb_name, chains in raw_data.items():
-                concat_embs[pdb_name] = torch.cat([chain["esm_embed"] for chain in chains.values()], dim=0)
-
-        return concat_embs
-    
-
-def resid_unique(res):
-    if type(res) == str:
-        res_ = res.split()
-        return f'{res_[1]}_{res_[2]}'
-    return f'{res.id[1]}_{res.get_parent().id}'
-
-
-def get_seq(entity, lch):
+def get_full_seq(entity, lch):
     aatype_rec, aatype_lig = [], []
     chain_id_rec, chain_id_lig = [], []
     for res in entity.get_residues():
@@ -225,17 +104,6 @@ def get_seq(entity, lch):
     assert len(aatype_full) == len(mask_full) == len(chain_id_full), "Shape mismatch when processing raw data!"
 
     return aatype_full, mask_full, chain_id_full
-
-
-class resSelector(Select):
-    def __init__(self, res_ids):
-        self.res_ids = res_ids
-    def accept_residue(self, residue):
-        resid = resid_unique(residue)
-        if resid not in self.res_ids:
-            return False
-        else:
-            return True
         
 
 def get_motif_center_pos(infile:str, lig_chain:str, hotspot_cutoff=8, pocket_cutoff=10):
@@ -243,7 +111,7 @@ def get_motif_center_pos(infile:str, lig_chain:str, hotspot_cutoff=8, pocket_cut
     struct = p.get_structure('', infile)[0]
     out_motif_file = infile.replace('.pdb', '_processed.pdb')
 
-    seq_full, mask_full, chain_id_full = get_seq(struct, lig_chain)
+    seq_full, mask_full, chain_id_full = get_full_seq(struct, lig_chain)
 
     ligand_coords_ca = [i['CA'].coord for i in struct.get_residues() if i.parent.id == lig_chain]
     assert len(ligand_coords_ca) != 0, f"Specified ligand chain not found for {os.path.basename(infile)}"
@@ -264,7 +132,7 @@ def get_motif_center_pos(infile:str, lig_chain:str, hotspot_cutoff=8, pocket_cut
 
     io = PDB.PDBIO()
     io.set_structure(struct)
-    io.save(out_motif_file, select=resSelector(motif_lig_chain))
+    io.save(out_motif_file, select=ResSelector(motif_lig_chain))
 
     center_pos = np.sum(np.array(ligand_coords_ca), axis=0) / len(ligand_coords_ca)
     struct = p.get_structure('', out_motif_file)[0]
