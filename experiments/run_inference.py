@@ -270,8 +270,7 @@ class Sampler(Experiment):
                 # DDP mode
                 if self._use_ddp :
                     device = torch.device("cuda",self.ddp_info['local_rank'])
-                    model = self.model.to(device)
-                    self._model = DDP(model, device_ids=[self.ddp_info['local_rank']], output_device=self.ddp_info['local_rank'], find_unused_parameters=True)
+                    self._model = self.model.to(device)
                     self._log.info(f"Multi-GPU sampling on GPUs in DDP mode, node_id : {self.ddp_info['node_id']}, devices: {device_ids}")
                 # DP mode
                 else:
