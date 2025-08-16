@@ -405,9 +405,6 @@ class Sampler(Experiment):
                         prot_traj_path=os.path.join(length_dir, f'{pdb_name}_sample_{sample_id}_traj.pdb')
                     )
                     self._log.info(f'Saved denoising trajectory to {traj_path}')
-        
-        if self._use_ddp:
-            dist.barrier()
 
         eval_time = time.time() - start_time
         pdb_list = list(entropy_dict.keys())
@@ -417,8 +414,6 @@ class Sampler(Experiment):
         if self._ss_bond_conf.build_ss_bond:
             pdb_ss_list = self.build_ss_bond(entropy_dict)
             pdb_list += pdb_ss_list
-            if self._use_ddp:
-                dist.barrier()
             self._log.info(f'Finished building possible SS bonds for generated peptides.')
 
 

@@ -427,9 +427,6 @@ class Sampler(Experiment):
                     )
                     self._log.info(f'Saved denoising trajectory to {traj_path}')
 
-        if self._use_ddp:
-            dist.barrier()
-
         eval_time = time.time() - start_time
         self._log.info(f'Finished all peptide docking tasks in {eval_time:.2f}s.')
 
