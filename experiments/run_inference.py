@@ -376,7 +376,7 @@ class Sampler(Experiment):
                 sample_id = i + self.ddp_info['local_rank'] * batch_size if self._use_ddp else i
                 pdb_sampled = os.path.join(
                     length_dir, 
-                    f'{pdb_name}_sample_{sample_id}.pdb'
+                    f'{pdb_name}_length_{peptide_len}_sample_{sample_id}.pdb'
                 )
                 entropy_dict[pdb_sampled] = unpad_aa_entropy[~unpad_fixed_mask]
                 b_factors = np.tile(unpad_aa_entropy[..., None], (1, 37)) * 30 if self._ss_bond_conf.save_entropy \

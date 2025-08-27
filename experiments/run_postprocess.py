@@ -64,6 +64,12 @@ def create_parser():
         help="Relax the structures using Rosetta FastRelax."
     )
 
+    parser.add_argument(
+        "--save_best",
+        action='store_true',
+        help="Keep only the best (lowest ddg) per (target_name, seq_id)."
+    )
+
     return parser
 
 
@@ -83,7 +89,8 @@ def main(args):
         xml=args.postprocess_xml_path,
         out_path=os.path.join(args.in_pdbs, 'postprocess_results.csv'),
         amber_relax=args.amber_relax,
-        rosetta_relax=args.rosetta_relax
+        rosetta_relax=args.rosetta_relax,
+        save_best=args.save_best,
     )
     print(f'Finished postprocessing of {len(test_files)} peptides.')
 

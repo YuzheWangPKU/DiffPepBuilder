@@ -202,7 +202,9 @@ def summarize_statistics(score_files: List[str], keys=["ddg_norepack", "rmsd"]):
             try:
                 scores.append([_scores[i][j] for j in keys])
                 indexes.append(
-                    os.path.join(os.path.dirname(score_file), _scores[i]["decoy"])
+                    os.path.realpath(
+                        os.path.join(os.path.dirname(score_file), _scores[i]["decoy"])
+                    )
                 )
             except:
                 continue

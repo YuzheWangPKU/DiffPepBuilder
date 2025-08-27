@@ -136,7 +136,7 @@ export BASE_PATH="your/path/to/DiffPepBuilder"
 python experiments/run_postprocess.py --in_pdbs runs/docking --ori_pdbs examples/docking_data --amber_relax --rosetta_relax
 ```
 
-This script generates the final protein-peptide complexes and computes the binding ddG values as a pose scoring metric. The results are summarized in the `runs/docking/postprocess_results.csv` file.
+This script generates the final protein-peptide complexes and computes the binding ddG values as a pose scoring metric. The results are summarized in the `runs/docking/postprocess_results.csv` file. Optionally, you can add the `--save_best` flag to record only the top-ranked poses based on binding ddG in the summary file.
 
 ## Training
 To train the DiffPepBuilder model from scratch, please download the training data from [Zenodo](https://zenodo.org/records/13744959) and unzip the data in the `data/` directory:

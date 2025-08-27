@@ -5,6 +5,9 @@ import tree
 import numpy as np
 from typing import List, Optional
 import multiprocessing as mp
+import re
+from pathlib import Path
+import pandas as pd
 
 from tmtools import tm_align
 from Bio.PDB import PDBParser
@@ -196,6 +199,52 @@ def postprocess_metric(
         print(f"An error occurred when processing {pdb_file}: {e}")
 
 
+def _extract_fields(p: str) -> dict:
+    path = Path(p)
+    parts = path.parts
+
+    target_name_dir = None
+    seq_id_dir = None
+    root_dir_path: Optional[Path] = None
+
+    if "postprocess_results" in parts:
+        i = parts.index("postprocess_results")
+        if i >= 2:
+            target_name_dir = parts[i - 2]
+            seq_id_dir = parts[i - 1]
+            if i - 2 > 0:
+                root_dir_path = Path(*parts[: i - 2]).resolve()
+            else:
+                root_dir_path = Path(".").resolve()
+
+    stem = path.name
+    m = re.match(r'^([^_]+)_(.+?)_sample_(\d+)(?:\.\w+)?$', stem)
+    target_from_file = seq_from_file = None
+    sample_id_val: Optional[int] = None
+    if m:
+        target_from_file, seq_from_file, sample_id_str = m.groups()
+        sample_id_val = int(sample_id_str)
+
+    target_name = target_name_dir or target_from_file
+    seq_id = seq_id_dir or seq_from_file
+
+    file_path = None
+    if root_dir_path and target_name and seq_id and sample_id_val is not None:
+        file_path = (
+            root_dir_path
+            / target_name
+            / seq_id
+            / f"{target_name}_{seq_id}_sample_{sample_id_val}_final.pdb"
+        )
+
+    return {
+        "root_dir": str(root_dir_path) if root_dir_path else None,
+        "target_name": target_name,
+        "seq_id": seq_id,
+        "sample_id": sample_id_val if sample_id_val is not None else pd.NA,
+        "file_path": str(file_path) if file_path else None,
+    }
+
 def postprocess_metric_parallel(
     files: List[str],
     ori_dir: str,
@@ -204,7 +253,8 @@ def postprocess_metric_parallel(
     xml: Optional[str] = None,
     out_path: str = "./postprocess_results.csv",
     amber_relax: bool = False,
-    rosetta_relax: bool = False
+    rosetta_relax: bool = False,
+    save_best: bool = False,
 ):
     if lig_chain_ids is not None:
         if len(lig_chain_ids) != len(files):
@@ -222,15 +272,31 @@ def postprocess_metric_parallel(
     with mp.Pool(nproc) as pool:
         pool.starmap(postprocess_metric, args_list)
 
-    for score_file in score_files:
-        if not os.path.exists(score_file):
-            print(f"Warning: score file {score_file} does not exist.")
-            score_files.remove(score_file)
+    missing = [s for s in score_files if not os.path.exists(s)]
+    for s in missing:
+        print(f"Warning: score file {s} does not exist.")
+    score_files = [s for s in score_files if os.path.exists(s)]
 
     if not score_files:
         print("No score files found. Exiting.")
         return
 
     df = summarize_statistics(list(score_files))
-    df.to_csv(out_path)
+    meta = pd.DataFrame([_extract_fields(str(p)) for p in df.index])
+    df_renamed = df.rename(columns={
+        "ddg_norepack": "ddg",
+        "rmsd": "postprocess_rmsd",
+    })
+    out_df = pd.concat([meta.reset_index(drop=True), df_renamed.reset_index(drop=True)], axis=1)[
+        ["target_name", "seq_id", "sample_id", "ddg", "postprocess_rmsd", "file_path"]
+    ]
+    out_df = out_df.sort_values(by=["target_name", "seq_id", "ddg"], ascending=[True, True, True]).reset_index(drop=True)
+    if save_best:
+        best_idx = out_df.groupby(["target_name", "seq_id"])["ddg"].idxmin()
+        out_df = (
+            out_df.loc[best_idx]
+            .sort_values(by=["target_name", "seq_id"], ascending=[True, True])
+            .reset_index(drop=True)
+        )
+    out_df.to_csv(out_path, index=False)
     print(f"Postprocessing metrics saved to {out_path}")
